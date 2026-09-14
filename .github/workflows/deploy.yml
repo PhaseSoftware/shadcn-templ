@@ -1,20 +1,25 @@
-# Off-host build: GitHub's free ARM runners build the image, ghcr.io
-# stores it, Dokploy only pulls (Provider: Docker). The server never
-# compiles again. Tag-triggered releases extend this workflow later
-# (see CREATE_1TO1_PLAN.md, release plan).
 name: deploy
 
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
   packages: write
+  id-token: write
+
+concurrency:
+  group: production-main
+  cancel-in-progress: false
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-24.04-arm
+    environment: production
+    timeout-minutes: 30
+
     steps:
       - uses: actions/checkout@v4
 
@@ -31,13 +36,25 @@ jobs:
           context: .
           platforms: linux/arm64
           push: true
-          tags: |
-            ghcr.io/axadrn/shadcn-templ:v2
-            ghcr.io/axadrn/shadcn-templ:${{ github.sha }}
+          tags: ghcr.io/axadrn/shadcn-templ:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Dokploy pulls the fresh image; the URL is the app's deploy
-      # webhook (Deployments tab) stored as a repo secret.
-      - name: Trigger Dokploy deploy
-        run: curl -fsS -X POST "${{ secrets.DOKPLOY_WEBHOOK_URL }}"
+      - name: Connect to prod-01 through Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: TA5fRdgvFU11CNTRL-kNv89UsXK811CNTRL
+          audience: api.tailscale.com/TA5fRdgvFU11CNTRL-kNv89UsXK811CNTRL
+          tags: tag:ci
+          ping: prod-01
+
+      - name: Sync Compose file
+        run: |
+          tailscale ssh root@prod-01 \
+            'mkdir -p /opt/apps/shadcn-templ.com && cat > /opt/apps/shadcn-templ.com/compose.yml' \
+            < compose.yml
+
+      - name: Deploy and wait for health
+        run: |
+          tailscale ssh root@prod-01 \
+            "cd /opt/apps/shadcn-templ.com && IMAGE_TAG=${GITHUB_SHA} docker compose up -d --pull always --wait --wait-timeout 120"

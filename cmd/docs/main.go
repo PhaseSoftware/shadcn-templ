@@ -428,7 +428,12 @@ func main() {
 		port = "8090"
 	}
 	log.Println("Server is running on http://localhost:" + port)
-	http.ListenAndServe(":"+port, wrappedMux)
+	server := http.NewServeMux()
+	server.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	server.Handle("/", wrappedMux)
+	http.ListenAndServe(":"+port, server)
 }
 
 func notFoundHandler(w http.ResponseWriter, r *http.Request) {

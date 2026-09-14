@@ -1,0 +1,23 @@
+services:
+  app:
+    image: ghcr.io/axadrn/shadcn-templ:${IMAGE_TAG:?IMAGE_TAG is required}
+    restart: unless-stopped
+    environment:
+      GO_ENV: production
+      BASE_URL: https://shadcn-templ.com
+    networks:
+      - proxy
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.shadcn-templ.rule: Host(`shadcn-templ.com`) || Host(`www.shadcn-templ.com`)
+      traefik.http.routers.shadcn-templ.entrypoints: websecure
+      traefik.http.routers.shadcn-templ.tls.certresolver: letsencrypt
+      traefik.http.routers.shadcn-templ.middlewares: shadcn-templ-www
+      traefik.http.middlewares.shadcn-templ-www.redirectregex.regex: ^https?://www\.shadcn-templ\.com/(.*)
+      traefik.http.middlewares.shadcn-templ-www.redirectregex.replacement: https://shadcn-templ.com/$${1}
+      traefik.http.middlewares.shadcn-templ-www.redirectregex.permanent: "true"
+      traefik.http.services.shadcn-templ.loadbalancer.server.port: "8090"
+
+networks:
+  proxy:
+    external: true
