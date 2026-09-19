@@ -31,8 +31,7 @@
     return prev && prev.hasAttribute("data-tui-select-input") ? prev : null;
   }
 
-  // Suppress the popup's inherited visibility transition (duration-100)
-  // when revealing it below. Focus then waits until after the input task:
+  // Focus waits until after the input task:
   // Chromium's mousedown default focuses the trigger, WebKit's clears focus.
   // One frame, like Base UI, with a guard for a popup that closed meanwhile.
   function enqueueFocus(el, shouldFocus) {

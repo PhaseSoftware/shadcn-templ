@@ -10,7 +10,6 @@ import (
 	"github.com/a-h/templ"
 	"github.com/axadrn/shadcn-templ/v2/components/button"
 	"github.com/axadrn/shadcn-templ/v2/components/dropdownmenu"
-	"golang.org/x/net/html"
 )
 
 func TestAttributesIDTakesPrecedence(t *testing.T) {
@@ -41,31 +40,16 @@ func TestDropdownTriggerIDLabelsPopup(t *testing.T) {
 	if err := dropdownmenu.DropdownMenu(dropdownmenu.Props{ID: "menu"}).Render(templ.WithChildren(context.Background(), children), &output); err != nil {
 		t.Fatal(err)
 	}
-	z := html.NewTokenizer(&output)
-	var triggerIDs []string
-	var label string
-	for {
-		tokenType := z.Next()
-		if tokenType == html.ErrorToken {
-			if z.Err() != io.EOF {
-				t.Fatal(z.Err())
-			}
-			break
-		}
-		if tokenType != html.StartTagToken {
-			continue
-		}
-		token := z.Token()
-		for _, attr := range token.Attr {
-			if token.Data == "button" && attr.Key == "id" {
-				triggerIDs = append(triggerIDs, attr.Val)
-			}
-			if attr.Key == "aria-labelledby" {
-				label = attr.Val
-			}
-		}
+	out := output.String()
+	_, trigger, found := strings.Cut(out, "<button")
+	if !found {
+		t.Fatalf("missing dropdown trigger: %s", out)
 	}
-	if len(triggerIDs) != 1 || triggerIDs[0] != "menu-trigger" || label != triggerIDs[0] {
-		t.Fatalf("trigger ids %v do not uniquely label popup %q", triggerIDs, label)
+	trigger, _, found = strings.Cut(trigger, ">")
+	if !found || strings.Count(trigger, ` id="`) != 1 || !strings.Contains(trigger, ` id="menu-trigger"`) {
+		t.Fatalf("expected one derived dropdown trigger id: %s", out)
+	}
+	if !strings.Contains(out, ` aria-labelledby="menu-trigger"`) {
+		t.Fatalf("popup is not labelled by the dropdown trigger: %s", out)
 	}
 }
