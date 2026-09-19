@@ -65,7 +65,7 @@ templ Button(props ...Props) {
 	}
 	if p.Href != "" && !p.Disabled {
 		<a
-			if p.ID != "" {
+			if _, ok := p.Attributes["id"]; !ok && p.ID != "" {
 				id={ p.ID }
 			}
 			href={ templ.SafeURL(p.Href) }
@@ -82,7 +82,7 @@ templ Button(props ...Props) {
 		</a>
 	} else {
 		<button
-			if p.ID != "" {
+			if _, ok := p.Attributes["id"]; !ok && p.ID != "" {
 				id={ p.ID }
 			}
 			if _, ok := p.Attributes["data-slot"]; !ok {

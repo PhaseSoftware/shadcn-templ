@@ -101,7 +101,7 @@ func Button(props ...Props) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if p.ID != "" {
+			if _, ok := p.Attributes["id"]; !ok && p.ID != "" {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " id=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -205,7 +205,7 @@ func Button(props ...Props) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if p.ID != "" {
+			if _, ok := p.Attributes["id"]; !ok && p.ID != "" {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, " id=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
