@@ -182,7 +182,9 @@ templ Trigger(props ...TriggerProps) {
 			}
 			data-slot="accordion-trigger"
 			aria-expanded={ utils.IfElse(itemOpen(ctx), "true", "false") }
-			aria-controls={ panelID(itemID(ctx)) }
+			if itemOpen(ctx) {
+				aria-controls={ panelID(itemID(ctx)) }
+			}
 			disabled?={ itemDisabled(ctx) }
 			if itemDisabled(ctx) {
 				aria-disabled="true"

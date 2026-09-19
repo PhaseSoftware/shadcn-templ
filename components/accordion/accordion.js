@@ -36,6 +36,7 @@
     triggerOf(item).setAttribute("aria-expanded", "true");
   syncItemState(item, true);
     if (!panel) return;
+    triggerOf(item).setAttribute("aria-controls", panel.id);
     panel.removeAttribute("data-closed");
     panel.hidden = false;
     panel.style.setProperty("--tui-accordion-panel-height", panel.scrollHeight + "px");
@@ -45,6 +46,7 @@
   function closeItem(item) {
     const panel = panelOf(item);
     triggerOf(item).setAttribute("aria-expanded", "false");
+    triggerOf(item).removeAttribute("aria-controls");
   syncItemState(item, false);
     if (!panel) return;
     panel.removeAttribute("data-open");
