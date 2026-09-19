@@ -18,30 +18,16 @@
     return document.getElementById(trigger.getAttribute("aria-controls"));
   }
 
-  // Port of floating-ui-react's enqueueFocus, called the way
-  // FloatingFocusManager calls it: focus the element once the popup is up,
-  // with a guard so one that closed meanwhile does not pull focus back.
-  //
-  // The reference queues a single animation frame and that is enough, because
-  // it focuses from a React effect — already a task later than the handler
-  // that opened the popup. We have no effect to hide behind, and Safari
-  // refuses focus() for a short and *variable* window after it activates a
-  // button or shows a popover, so one shot is a race: microtask+frame and
-  // task+frame both land inside the window often enough to strand focus on
-  // the trigger and leave the arrow keys dead. Retrying across a few frames
-  // and stopping the moment it takes is immune to how long the window is.
-  // Chromium succeeds on the first attempt.
-  function enqueueFocus(el, shouldFocus, frames = 8) {
+  // Suppress the popup's inherited visibility transition (duration-100)
+  // when revealing it below. Focus then waits until after the input task:
+  // Chromium's mousedown default focuses the trigger, WebKit's clears focus.
+  // One frame, like Base UI, with a guard for a popup that closed meanwhile.
+  function enqueueFocus(el, shouldFocus) {
     if (!el) return;
-    const attempt = (left) => {
+    requestAnimationFrame(() => {
       if (shouldFocus && !shouldFocus()) return;
-      if (document.activeElement === el) return;
       el.focus({ preventScroll: true });
-      if (document.activeElement !== el && left > 0) {
-        requestAnimationFrame(() => attempt(left - 1));
-      }
-    };
-    requestAnimationFrame(() => attempt(frames));
+    });
   }
 
   function popupFor(content) {
@@ -222,10 +208,13 @@
     const finish = () => {
       // duration-100 transitions `all`; a visibility transition would
       // freeze at hidden in background tabs - flip suppressed.
+      const popup = popupFor(content);
       content.style.transitionProperty = "none";
+      if (popup) popup.style.transitionProperty = "none";
       content.style.visibility = "";
       void content.offsetWidth;
       content.style.transitionProperty = "";
+      if (popup) popup.style.transitionProperty = "";
       if (content.hidden) return;
       setState(content, "open");
       startTransition(content);
@@ -236,7 +225,6 @@
         trigger.setAttribute("data-pressed", "");
       }
       // Base UI moves focus into the popup when it opens.
-      const popup = popupFor(content);
       if (popup && !content.contains(document.activeElement)) {
         enqueueFocus(popup, () => isOpen(content));
       }
