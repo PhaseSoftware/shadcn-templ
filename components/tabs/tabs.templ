@@ -133,7 +133,9 @@ templ List(props ...ListProps) {
 			id={ p.ID }
 		}
 		role="tablist"
-		aria-orientation={ string(orientation(ctx)) }
+		if orientation(ctx) == OrientationVertical {
+			aria-orientation="vertical"
+		}
 		data-activate-on-focus?={ p.ActivateOnFocus }
 		class={
 			utils.CN(
@@ -201,7 +203,7 @@ templ Trigger(props ...TriggerProps) {
 }
 
 // Content is Base UI's Tabs.Panel: the tabpanel role labelled by its tab, and
-// tabindex="0" so panel content with nothing focusable is still reachable.
+// tabindex="0" on the active panel so its content is still reachable.
 templ Content(props ...ContentProps) {
 	{{ var p ContentProps }}
 	if len(props) > 0 {
@@ -222,7 +224,7 @@ templ Content(props ...ContentProps) {
 		id={ p.ID }
 		role="tabpanel"
 		aria-labelledby={ triggerID(tabsID, p.Value) }
-		tabindex="0"
+		tabindex={ utils.IfElse(tabsIsActive(ctx, p.Value), "0", "-1") }
 		class={
 			utils.CN(
 				"cn-tabs-content flex-1 outline-none",

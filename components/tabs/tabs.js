@@ -35,6 +35,7 @@
           isActive ? "active" : "inactive",
         );
         content.classList.toggle("hidden", !isActive);
+        content.setAttribute("tabindex", isActive ? "0" : "-1");
       });
   }
 
