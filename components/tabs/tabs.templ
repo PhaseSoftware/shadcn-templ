@@ -195,7 +195,6 @@ templ Trigger(props ...TriggerProps) {
 		data-tui-tabs-value={ p.Value }
 		data-tui-tabs-state={ utils.IfElse(tabsIsActive(ctx, p.Value), "active", "inactive") }
 		data-active?={ tabsIsActive(ctx, p.Value) }
-		disabled?={ p.Disabled }
 		{ p.Attributes... }
 	>
 		{ children... }

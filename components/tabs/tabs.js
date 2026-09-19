@@ -55,7 +55,7 @@
   // Click handler
   document.addEventListener("click", (e) => {
     const trigger = e.target.closest("[data-tui-tabs-trigger]");
-    if (!trigger) return;
+    if (!trigger || trigger.getAttribute("aria-disabled") === "true") return;
 
     const tabsId = trigger.getAttribute("data-tui-tabs-id");
     const value = trigger.getAttribute("data-tui-tabs-value");
@@ -66,7 +66,7 @@
   });
 
   // Keyboard navigation from useTabsList: the arrows walk the list, Home and
-  // End jump to its ends, disabled tabs are skipped and movement wraps.
+  // End jump to its ends, disabled tabs stay focusable and movement wraps.
   //
   // Moving focus does not activate. That is Base UI's activateOnFocus=false
   // default, and the right one here: a panel is free to load its content when
@@ -74,13 +74,6 @@
   // per arrow press. Enter and Space activate, through the native button
   // click the click handler above already answers. Set ActivateOnFocus on the
   // list for the other behaviour.
-  function enabledTriggers(root) {
-    return [...root.querySelectorAll("[data-tui-tabs-trigger]")].filter(
-      (trigger) =>
-        !trigger.disabled && trigger.getAttribute("aria-disabled") !== "true",
-    );
-  }
-
   document.addEventListener("keydown", (e) => {
     const trigger = e.target.closest && e.target.closest("[data-tui-tabs-trigger]");
     if (!trigger) return;
@@ -93,7 +86,7 @@
     const prev = vertical ? "ArrowUp" : rtl ? "ArrowRight" : "ArrowLeft";
     const next = vertical ? "ArrowDown" : rtl ? "ArrowLeft" : "ArrowRight";
 
-    const triggers = enabledTriggers(root);
+    const triggers = [...root.querySelectorAll("[data-tui-tabs-trigger]")];
     const current = triggers.indexOf(trigger);
     if (current === -1) return;
 
@@ -108,7 +101,10 @@
     e.preventDefault(); // the arrows would otherwise scroll the page
 
     const list = trigger.closest("[data-tui-tabs-list]");
-    if (list && list.hasAttribute("data-activate-on-focus")) {
+    if (
+      list && list.hasAttribute("data-activate-on-focus") &&
+      target.getAttribute("aria-disabled") !== "true"
+    ) {
       // setActiveTab moves the roving tabindex with the selection.
       setActiveTab(
         target.getAttribute("data-tui-tabs-id"),
@@ -137,7 +133,7 @@
     authored ||
     (container.hasAttribute("data-tui-tabs-controlled")
       ? null
-      : container.querySelector(`[data-tui-tabs-trigger]:not(:disabled)`));
+      : container.querySelector(`[data-tui-tabs-trigger]:not([aria-disabled="true"])`));
 
       if (activeTrigger) {
         setActiveTab(tabsId, activeTrigger.getAttribute("data-tui-tabs-value"));
