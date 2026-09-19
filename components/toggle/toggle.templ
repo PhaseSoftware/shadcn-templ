@@ -151,6 +151,9 @@ templ Toggle(props ...Props) {
 	}
 	<button
 		type="button"
+		if _, ok := p.Attributes["tabindex"]; !ok {
+			tabindex="0"
+		}
 		if inGroup {
 			data-slot="toggle-group-item"
 			data-variant={ string(p.Variant) }
