@@ -2,7 +2,7 @@
 
 - **Planner**: Claude
 - **Executor**: Codex
-- **Status**: ready
+- **Status**: done
 
 ## Context
 
@@ -47,3 +47,9 @@ Verified against a temporary server on 8096 (8091 and 8092 were occupied by exis
 Evidence remains in tmp/a11y-600/menu-sub-{webkit,chromium}.log, menu-a11y-{webkit,chromium}.log and sub-{webkit,chromium}-8096.png. Stopped the temporary 8096 server. Existing diagnostic servers and the user's pending plans/a11y-600.md review changes were left untouched. Ready for Planner review; bug 2 still awaits the user's real-Safari timing and scroll-lock comparison.
 
 ## Planner review
+
+- Task 1 (`b51d0453`): accepted. Re-checked by the Planner against the user's own dev server on 8090 after the commit: `sub3.mjs` in WebKit reports `subPosition: "fixed"` and `hitOnSubItem: "dropdown-menu-item"`. The two lines match the context menu exactly. Diagnostic servers 8091 and 8093 ran older commits without the fix and are stopped so nobody tests the wrong build; 8092 (before the PR), 8094 (timing overlay) and 8095 (no scroll lock) stay up for bug 2.
+
+- Bug 2: parked by the user on 2026-09-19, no task. Evidence gathered: the on-page overlay in real Safari showed the JavaScript open path finishing in 78 ms and the enter animation ending at 194 ms while the menu still appeared with a delay of about a second; in other runs one forced layout after the scroll lock cost 283 ms and `computePosition` another 300 ms, both wildly variable between clicks. Playwright's WebKit, Firefox and Chromium open the same menu in 30 ms with a 2 ms relayout, and a private Safari window is just as slow, so extensions are not the cause. The context menu on the same page is instant in Safari, so the page weight alone (20k elements, 18k of them shiki spans, 2.2 MB CSS with 1139 `:has()` rules) does not explain it. Whatever Safari does differently sits in rendering after our DOM changes, not in component code. Diagnostic servers and worktrees are removed. If this is picked up again, the first step is Safari's Timelines panel on a real click, or the "Allow JavaScript from Apple Events" switch so the Planner can measure inside Safari directly.
+
+All tasks accepted. Remaining outside the plan: the push.
