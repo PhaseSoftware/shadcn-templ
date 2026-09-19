@@ -364,7 +364,7 @@
     // Base UI submenu placement: right-start, sideOffset 0, alignOffset -3.
     computePosition(trigger, content, {
       placement: "right-start",
-      strategy: "absolute",
+      strategy: "fixed",
       middleware: [
         offset({ mainAxis: 0, alignmentAxis: -3 }),
         flip({ padding: COLLISION_PADDING }),

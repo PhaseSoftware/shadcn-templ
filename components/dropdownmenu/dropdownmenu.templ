@@ -657,7 +657,7 @@ templ SubContent(props ...SubContentProps) {
 				"cn-dropdown-menu-content cn-dropdown-menu-content-logical cn-menu-target cn-menu-translucent cn-dropdown-menu-sub-content z-50 w-auto origin-(--transform-origin) overflow-x-hidden overflow-y-auto outline-none data-closed:overflow-hidden",
 				// JS wiring: floatingui positions the sub content as a fixed layer and
 				// toggles the hidden class around the exit animation.
-				"hidden absolute inset-auto left-0 top-0 data-closed:fill-mode-forwards",
+				"hidden fixed inset-auto left-0 top-0 data-closed:fill-mode-forwards",
 				p.Class,
 			),
 		}
