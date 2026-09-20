@@ -127,3 +127,18 @@ func TestParseSpecifiedDomain(t *testing.T) {
 		}
 	}
 }
+
+func TestGaps(t *testing.T) {
+	data := []Datum{{"a": 180, "b": 200}, {"b": 220}, {"a": 200, "b": 210}}
+	m := renderModel(t, nil, LineChart(LineChartProps{Data: data}), templ.Join(YAxis(YAxisProps{Domain: []any{"dataMin", "dataMax"}}), Line(LineProps{DataKey: "a"}), Line(LineProps{DataKey: "b"})))
+	series := m["series"].([]any)
+	if got := fmt.Sprint(series[0].(map[string]any)["gaps"]); got != "[false true false]" {
+		t.Fatalf("gaps: %s", got)
+	}
+	if _, ok := series[1].(map[string]any)["gaps"]; ok {
+		t.Fatal("full series has gaps")
+	}
+	if got := fmt.Sprint(m["domain"]); got != "[180 220]" {
+		t.Fatalf("gap changed domain: %s", got)
+	}
+}

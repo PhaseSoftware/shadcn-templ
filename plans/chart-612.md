@@ -68,7 +68,7 @@ Checks: `go test ./components/chart/` with a test per fixture, `probe.mjs` in we
 
 ### 4. Gaps
 
-- [ ] Done
+- [x] Done
 
 `chart.templ`: `modelSeries` records `Gaps []bool` where `d[key] == nil` (the PR's diff); the data domain from task 2 skips gap rows. `chart.js`: the PR's `isGap`, `gappedPath` and the skips in the dot loop, `tooltipHTML` and `showActiveDots`. Extend: the line label loop skips gap rows; the non stacked area branch draws one subpath per run for both `recharts-area-area` and `recharts-area-curve` (an `areaPathBetween` per run, the same run loop as `gappedPath`); stacked branches ignore `gaps`. `positionTooltip` keeps the wrapper hidden when `tooltipHTML` produced no rows for the index and shows it again when it does. Fixture `gaps`: three lines, one row missing the first key, one row missing every key; the same data as an area chart.
 
@@ -141,5 +141,13 @@ Checks: `go build ./...`, `go vet ./components/chart/`.
 - `go test ./components/chart/`, JS syntax and `git diff --check` passed. Tick fixtures use 0/100/200/300 so Recharts-style collision culling does not obscure any expected label.
 - Clarification of the plan's “drawn ticks” wording: auto domains follow computed nice ticks, while explicit Ticks controls drawn labels, matching getTicksOfScale; explicit labels alone do not replace the default zero-based domain.
 - Browser numeric comparisons tolerate float64 representation noise (e.g. 220.00000000000003); displayed labels remain exact.
+
+### Task 4
+
+- Non-stacked areas now split both fill and outline at gaps, including valid singleton runs. Line labels skip gaps. Empty tooltip payloads hide the wrapper; nested labels use the filtered payload size.
+- Existing Go gap collection is retained and tested with a missing key and a full companion series; missing values do not lower a dataMin domain.
+- Both engines pass gap/tooltip assertions and all baseline comparisons. First line and area each have two M commands; tooltip at the partial row has two entries and the empty row is hidden.
+- Fixture clarification: with one partial row plus a separate completely empty row, the first series necessarily has two missing values (four dots and labels for six rows); the other series each have five dots. The plan's “one dot less” cannot hold for that combined fixture.
+- `go test ./components/chart/`, JS syntax and `git diff --check` passed.
 
 ## Planner review

@@ -325,7 +325,21 @@ function gappedPath(curve, xs, ys, gaps) {
   let start = 0;
   for (let i = 0; i <= xs.length; i++) {
     if (i < xs.length && !gaps[i]) continue;
-    if (i > start) d += curvePath(curve, xs.slice(start, i), ys.slice(start, i));
+    if (i === start + 1) d += `M${fmtF(xs[start])},${fmtF(ys[start])}Z`;
+    else if (i > start) d += curvePath(curve, xs.slice(start, i), ys.slice(start, i));
+    start = i + 1;
+  }
+  return d;
+}
+
+function gappedAreaPath(curve, xs, top, base, gaps) {
+  if (!gaps) return areaPathBetween(curve, xs, top, base);
+  let d = "";
+  let start = 0;
+  for (let i = 0; i <= xs.length; i++) {
+    if (i < xs.length && !gaps[i]) continue;
+    if (i === start + 1) d += `M${fmtF(xs[start])},${fmtF(top[start])}L${fmtF(xs[start])},${fmtF(base[start])}Z`;
+    else if (i > start) d += areaPathBetween(curve, xs.slice(start, i), top.slice(start, i), base.slice(start, i));
     start = i + 1;
   }
   return d;
@@ -844,6 +858,7 @@ function renderCartesian(panel, m, state, alpha = 1) {
         const ll = s.labelList;
         svg += `<g class="recharts-layer recharts-label-list">`;
         for (let i = 0; i < n; i++) {
+          if (isGap(s, i)) continue;
           const fill = ll.class ? "" : ` fill="${s.stroke || s.color}"`;
           svg += `<text x="${fmtF(sx[i])}" y="${fmtF(top[i] - (ll.offset || 5))}" class="recharts-text recharts-label ${ll.class || ""}" text-anchor="middle" font-size="${fmtF(ll.fontSize || 12)}"${fill}><tspan>${ll.labels[i]}</tspan></text>`;
         }
@@ -877,7 +892,7 @@ function renderCartesian(panel, m, state, alpha = 1) {
       );
       const fill = (s.fill || "").replace("url(#", `url(#${state.uid}-`) || s.color;
       const fillOpacity = s.fillOpacity || 0.6;
-      const areaD = m.stacked ? areaPathBetween(s.curve, sx, top, base) : areaPathBetween(s.curve, sx, top, baseline);
+      const areaD = m.stacked ? areaPathBetween(s.curve, sx, top, base) : gappedAreaPath(s.curve, sx, top, baseline, s.gaps);
       // HorizontalRect: the reveal spans the point range and reaches the
       // lowest painted y plus the stroke width.
       let clip = "";
@@ -893,7 +908,7 @@ function renderCartesian(panel, m, state, alpha = 1) {
         clip +
         `<g class="recharts-layer recharts-area"${clipOpen}>` +
         `<path class="recharts-curve recharts-area-area" fill="${fill}" fill-opacity="${fillOpacity}" stroke="none" d="${areaD}"/>` +
-        `<path class="recharts-curve recharts-area-curve" stroke="${s.stroke || s.color}" fill="none" stroke-width="1" d="${curvePath(s.curve, sx, top)}"/>` +
+        `<path class="recharts-curve recharts-area-curve" stroke="${s.stroke || s.color}" fill="none" stroke-width="1" d="${gappedPath(s.curve, sx, top, m.stacked ? null : s.gaps)}"/>` +
         `</g>`;
       state.tops.push(top);
       state.points.xs.push(sx);
@@ -1657,11 +1672,13 @@ function tooltipHTML(m, i, pieIndex = 0) {
   // the config label of its own data key, like getPayloadConfigFromPayload
   // reading item.dataKey.
   const pie = m.kind === "pie" ? m.pies[pieIndex] : null;
+  const payloadCount = pie ? 1 : m.series.filter(s => !isGap(s, i) && !isHidden(m, s)).length;
+  if (!payloadCount) return "";
   const label = pie ? pie.seriesLabel || t.label : t.label || (m.tooltipLabels && m.tooltipLabels[i]) || m.labels[i];
   // Like ChartTooltipContent: a single non-dot payload nests the label
   // inside the row, so the line indicator spans the full row height. A pie
   // always carries a single payload item.
-  const nestLabel = (pie ? true : m.series.length === 1) && t.indicator && t.indicator !== "dot";
+  const nestLabel = (payloadCount === 1) && t.indicator && t.indicator !== "dot";
   const labelCls = `font-medium${t.labelClass ? " " + t.labelClass : ""}`;
   let html = `<div class="${TOOLTIP_CLASS}${t.width ? " " + t.width : ""}">`;
   if (!t.hideLabel && !nestLabel) {
@@ -2009,7 +2026,7 @@ function initPanel(script) {
   function positionTooltip(e, snapX, snapY, i, pieIndex = 0) {
     const wasHidden = wrapper.style.visibility !== "visible";
     wrapper.innerHTML = tooltipHTML(m, i, pieIndex);
-    wrapper.style.visibility = "visible";
+    wrapper.style.visibility = wrapper.innerHTML ? "visible" : "hidden";
     const crect = container.getBoundingClientRect();
     const tw = wrapper.offsetWidth;
     const th = wrapper.offsetHeight;
