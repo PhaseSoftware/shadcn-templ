@@ -870,7 +870,7 @@ function renderCartesian(panel, m, state, alpha = 1) {
       if (alpha >= 1 && !state.morph && s.dot) {
         svg += `<g class="recharts-layer recharts-line-dots">`;
         for (let i = 0; i < n; i++) {
-          if (isGap(s, i) || (s.dot.indices && !s.dot.indices.includes(i))) continue;
+          if (isGap(s, i) || (s.dot.shown && !s.dot.shown[i])) continue;
           if (s.dot.icon) {
             const size = s.dot.size || 24;
             svg += `<g transform="translate(${fmtF(sx[i] - size / 2)},${fmtF(top[i] - size / 2)})">${s.dot.icon}</g>`;

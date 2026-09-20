@@ -339,12 +339,12 @@ type DotProps struct {
 	R           float64
 	FillOpacity float64
 	Fill        string
-	DataFill bool
-	Icon     templ.Component
-	Size     float64 // icon box, like the custom dot's width/height
-	// Indices limits the dots to those data rows, the pendant of a dot
-	// render prop that returns null elsewhere. Nil draws every row.
-	Indices []int
+	DataFill    bool
+	Icon        templ.Component
+	Size        float64 // icon box, like the custom dot's width/height
+	// Show mirrors a dot render prop returning an element or null for a
+	// data row. Nil draws every row.
+	Show func(index int, row Datum) bool
 }
 
 // ActiveDotProps is the pendant of Recharts' activeDot object.
@@ -1278,7 +1278,13 @@ func buildModel(ctx context.Context, st *chartState) Model {
 				s.ActiveDotR = l.props.ActiveDot.R
 			}
 			if d := l.props.Dot; d != nil {
-				dm := &DotModel{R: d.R, Fill: d.Fill, Size: d.Size, Indices: d.Indices}
+				dm := &DotModel{R: d.R, Fill: d.Fill, Size: d.Size}
+				if d.Show != nil {
+					dm.Shown = make([]bool, len(st.data))
+					for i, row := range st.data {
+						dm.Shown[i] = d.Show(i, row)
+					}
+				}
 				if d.DataFill {
 					dm.Fills = make([]string, len(st.data))
 					for i, row := range st.data {
@@ -1835,13 +1841,13 @@ type ModelSeries struct {
 
 // DotModel describes the per point dots of a line.
 type DotModel struct {
-	R           float64 `json:"r,omitempty"`
-	FillOpacity float64 `json:"fillOpacity,omitempty"`
-	Fill  string   `json:"fill,omitempty"`
-	Fills []string `json:"fills,omitempty"` // per point fills from the data rows
-	Icon  string   `json:"icon,omitempty"`  // rendered svg replacing the dot
-	Size  float64  `json:"size,omitempty"`  // icon box size
-	Indices     []int    `json:"indices,omitempty"` // only these rows get a dot
+	R           float64  `json:"r,omitempty"`
+	FillOpacity float64  `json:"fillOpacity,omitempty"`
+	Fill        string   `json:"fill,omitempty"`
+	Fills       []string `json:"fills,omitempty"` // per point fills from the data rows
+	Icon        string   `json:"icon,omitempty"`  // rendered svg replacing the dot
+	Size        float64  `json:"size,omitempty"`  // icon box size
+	Shown       []bool   `json:"shown,omitempty"` // per-row result of the dot render predicate
 }
 
 // LabelListModel carries the precomputed labels of a LabelList.

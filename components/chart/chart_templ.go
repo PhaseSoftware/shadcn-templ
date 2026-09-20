@@ -438,9 +438,9 @@ type DotProps struct {
 	DataFill    bool
 	Icon        templ.Component
 	Size        float64 // icon box, like the custom dot's width/height
-	// Indices limits the dots to those data rows, the pendant of a dot
-	// render prop that returns null elsewhere. Nil draws every row.
-	Indices []int
+	// Show mirrors a dot render prop returning an element or null for a
+	// data row. Nil draws every row.
+	Show func(index int, row Datum) bool
 }
 
 // ActiveDotProps is the pendant of Recharts' activeDot object.
@@ -1976,7 +1976,13 @@ func buildModel(ctx context.Context, st *chartState) Model {
 				s.ActiveDotR = l.props.ActiveDot.R
 			}
 			if d := l.props.Dot; d != nil {
-				dm := &DotModel{R: d.R, Fill: d.Fill, Size: d.Size, Indices: d.Indices}
+				dm := &DotModel{R: d.R, Fill: d.Fill, Size: d.Size}
+				if d.Show != nil {
+					dm.Shown = make([]bool, len(st.data))
+					for i, row := range st.data {
+						dm.Shown[i] = d.Show(i, row)
+					}
+				}
 				if d.DataFill {
 					dm.Fills = make([]string, len(st.data))
 					for i, row := range st.data {
@@ -2411,7 +2417,7 @@ func legendContent(items []LegendItem, p *LegendProps) templ.Component {
 				var templ_7745c5c3_Var34 string
 				templ_7745c5c3_Var34, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues("background-color:" + it.Color)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/chart/chart.templ`, Line: 1651, Col: 88}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/chart/chart.templ`, Line: 1657, Col: 88}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 				if templ_7745c5c3_Err != nil {
@@ -2425,7 +2431,7 @@ func legendContent(items []LegendItem, p *LegendProps) templ.Component {
 			var templ_7745c5c3_Var35 string
 			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(it.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/chart/chart.templ`, Line: 1653, Col: 15}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/chart/chart.templ`, Line: 1659, Col: 15}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 			if templ_7745c5c3_Err != nil {
@@ -2625,10 +2631,10 @@ type DotModel struct {
 	R           float64  `json:"r,omitempty"`
 	FillOpacity float64  `json:"fillOpacity,omitempty"`
 	Fill        string   `json:"fill,omitempty"`
-	Fills       []string `json:"fills,omitempty"`   // per point fills from the data rows
-	Icon        string   `json:"icon,omitempty"`    // rendered svg replacing the dot
-	Size        float64  `json:"size,omitempty"`    // icon box size
-	Indices     []int    `json:"indices,omitempty"` // only these rows get a dot
+	Fills       []string `json:"fills,omitempty"` // per point fills from the data rows
+	Icon        string   `json:"icon,omitempty"`  // rendered svg replacing the dot
+	Size        float64  `json:"size,omitempty"`  // icon box size
+	Shown       []bool   `json:"shown,omitempty"` // per-row result of the dot render predicate
 }
 
 // LabelListModel carries the precomputed labels of a LabelList.

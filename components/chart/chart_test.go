@@ -142,3 +142,18 @@ func TestGaps(t *testing.T) {
 		t.Fatalf("gap changed domain: %s", got)
 	}
 }
+
+func TestDotShow(t *testing.T) {
+	data := []Datum{{"v": 10}, {"v": 20}, {"v": 30}, {"v": 40}}
+	calls := 0
+	m := renderModel(t, nil, LineChart(LineChartProps{Data: data}), Line(LineProps{DataKey: "v", Dot: &DotProps{Show: func(index int, row Datum) bool { calls++; return index%2 == 1 && row["v"].(int) >= 20 }}}))
+	dot := m["series"].([]any)[0].(map[string]any)["dot"].(map[string]any)
+	if calls != 4 || fmt.Sprint(dot["shown"]) != "[false true false true]" {
+		t.Fatalf("calls=%d dot=%v", calls, dot)
+	}
+	m = renderModel(t, nil, LineChart(LineChartProps{Data: data}), Line(LineProps{DataKey: "v", Dot: &DotProps{}}))
+	dot = m["series"].([]any)[0].(map[string]any)["dot"].(map[string]any)
+	if _, ok := dot["shown"]; ok {
+		t.Fatal("nil predicate must omit shown")
+	}
+}

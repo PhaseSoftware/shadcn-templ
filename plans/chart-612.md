@@ -88,7 +88,7 @@ Checks: `go test ./components/chart/`, `probe.mjs` chromium, the screenshot.
 
 ### 6. Dot predicate
 
-- [ ] Done
+- [x] Done
 
 `chart.templ`: `DotProps.Indices` is replaced by `DotProps.Show func(index int, row Datum) bool`; `buildModel` fills `DotModel.Shown []bool` when set, next to the `Fills` loop. `chart.js`: the dot loop skips rows where `s.dot.shown` is set and false; the PR's `indices` check goes. Fixture `dots`: a line whose dots show on rows 1 and 3 only.
 
@@ -156,5 +156,11 @@ Checks: `go build ./...`, `go vet ./components/chart/`.
 - Chromium fixtures and all demo baselines pass. A separate motion-enabled browser run asserts repeated 4px/4px segments mid-entrance and the exact final `4 4` attribute. Visually inspected `tmp/chart-612/dashes-300ms.png`: the revealed portion is dashed.
 - Local algorithm checks cover partial segments, exact pattern boundaries, odd patterns and all-zero patterns. `go test ./components/chart/`, JS syntax and `git diff --check` passed.
 - Static probes now request reduced motion; the dedicated screenshot probe explicitly retains animation.
+
+### Task 6
+
+- Replaced DotProps.Indices with Show(index, row), evaluated once per row into DotModel.Shown; nil omits the field. Browser dots skip false rows while retaining gap filtering.
+- Added Go checks for predicate inputs, call count, selected rows and nil behavior. Chromium shows exactly two dots and `chart-line-dots` matches its baseline; previous fixtures still pass.
+- `go test ./components/chart/`, JS syntax and `git diff --check` passed. Aligned DotProps/DotModel fields; generated Go came from the watcher.
 
 ## Planner review
