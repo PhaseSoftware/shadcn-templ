@@ -469,6 +469,36 @@ function syncAttrs(el, src) {
   }
 }
 
+// Recharts 2.15.4 Line.repeat and Line.getStrokeDasharray: retain the
+// user's pattern inside the animated sweep.
+function repeat(lines, count) {
+  const linesUnit = lines.length % 2 !== 0 ? [...lines, 0] : lines;
+  let result = [];
+  for (let i = 0; i < count; ++i) result = [...result, ...linesUnit];
+  return result;
+}
+
+function generateSimpleStrokeDasharray(totalLength, length) {
+  return `${length}px ${totalLength - length}px`;
+}
+
+function getStrokeDasharray(length, totalLength, lines) {
+  const lineLength = lines.reduce((pre, next) => pre + next);
+  if (!lineLength) return generateSimpleStrokeDasharray(totalLength, length);
+  const count = Math.floor(length / lineLength);
+  const remainLength = length % lineLength;
+  const restLength = totalLength - length;
+  let remainLines = [];
+  for (let i = 0, sum = 0; i < lines.length; sum += lines[i], ++i) {
+    if (sum + lines[i] > remainLength) {
+      remainLines = [...lines.slice(0, i), remainLength - sum];
+      break;
+    }
+  }
+  const emptyLines = remainLines.length % 2 === 0 ? [0, restLength] : [restLength];
+  return [...repeat(lines, count), ...remainLines, ...emptyLines].map(line => `${line}px`).join(", ");
+}
+
 /* CSS 'ease' (cubic-bezier(0.25, 0.1, 0.25, 1)), Recharts' default
  * animation easing. */
 function cssEase(t) {
@@ -826,7 +856,10 @@ function renderCartesian(panel, m, state, alpha = 1) {
       let dash = s.strokeDasharray ? ` stroke-dasharray="${s.strokeDasharray}"` : "";
       if (alpha < 1) {
         const total = pathLength(d);
-        dash = ` stroke-dasharray="${fmtF(total * alpha)}px ${fmtF(total - total * alpha)}px"`;
+        const pattern = s.strokeDasharray
+          ? getStrokeDasharray(total * alpha, total, String(s.strokeDasharray).split(/[,\s]+/gim).map(num => parseFloat(num)))
+          : generateSimpleStrokeDasharray(total, total * alpha);
+        dash = ` stroke-dasharray="${pattern}"`;
       }
       svg +=
         `<g class="recharts-layer recharts-line" data-key="${s.key}">` +

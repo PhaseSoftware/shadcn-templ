@@ -78,7 +78,7 @@ Checks: `go test ./components/chart/`, `probe.mjs` in webkit and chromium, `git 
 
 ### 5. Dashed lines with the Recharts entrance
 
-- [ ] Done
+- [x] Done
 
 `chart.templ`: `LineProps.StrokeDasharray string` into `ModelSeries.StrokeDasharray` (the PR's diff). `chart.js`: port `Line.repeat` and `Line.getStrokeDasharray` literally under those names; in the line branch, when `alpha < 1` and the series has a pattern, the dash attribute is `getStrokeDasharray(total * alpha, total, pattern)`, otherwise the existing sweep; when `alpha >= 1` the pattern verbatim. Fixture `dashes`: one dashed line `"4 4"`.
 
@@ -149,5 +149,12 @@ Checks: `go build ./...`, `go vet ./components/chart/`.
 - Both engines pass gap/tooltip assertions and all baseline comparisons. First line and area each have two M commands; tooltip at the partial row has two entries and the empty row is hidden.
 - Fixture clarification: with one partial row plus a separate completely empty row, the first series necessarily has two missing values (four dots and labels for six rows); the other series each have five dots. The plan's “one dot less” cannot hold for that combined fixture.
 - `go test ./components/chart/`, JS syntax and `git diff --check` passed.
+
+### Task 5
+
+- Ported Line.repeat, getStrokeDasharray and generateSimpleStrokeDasharray; dashed series keep their pattern during the entrance and the original string afterward.
+- Chromium fixtures and all demo baselines pass. A separate motion-enabled browser run asserts repeated 4px/4px segments mid-entrance and the exact final `4 4` attribute. Visually inspected `tmp/chart-612/dashes-300ms.png`: the revealed portion is dashed.
+- Local algorithm checks cover partial segments, exact pattern boundaries, odd patterns and all-zero patterns. `go test ./components/chart/`, JS syntax and `git diff --check` passed.
+- Static probes now request reduced motion; the dedicated screenshot probe explicitly retains animation.
 
 ## Planner review
