@@ -6,7 +6,7 @@
  * the parts of the reference libraries the chart components need:
  * - recharts ResponsiveContainer: render at the container's real pixel
  *   size via ResizeObserver, so bars, radii and text keep their sizes.
- * - recharts-scale getNiceTickValues: the y domain and tick values.
+ * - recharts-scale getNiceTickValues: the radar domain and tick values.
  * - recharts CartesianAxis preserveEnd: tick culling with measured label
  *   sizes and minTickGap.
  * - d3-shape: curveNatural, curveLinear, curveStep and stackOffsetExpand.
@@ -28,6 +28,10 @@ const TOOLTIP_CLASS = "cn-chart-tooltip grid min-w-32 items-start";
 /* ---------------------------------------------------------------- */
 /* Geometry (ports of the Go engine)                                */
 /* ---------------------------------------------------------------- */
+
+function escapeHTML(value) {
+  return String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+}
 
 function fmtF(v) {
   return String(Math.round(v * 1000) / 1000);
@@ -148,19 +152,11 @@ function domainTicks(m, tickCount = 5) {
   return niceTickValues(min, max, tickCount);
 }
 
-/* domainOf is the top of the value domain, used to pin the scale during a
- * morph. */
-function domainOf(m) {
-  const t = domainTicks(m);
-  return t[t.length - 1];
-}
-
 /* valueScale maps a value onto its pixel position. With negative values
  * the domain spans [min, max] and the zero baseline sits inside the plot,
  * like Recharts' linear scale. */
-function valueScale(m, start, length, ticks) {
-  const max = ticks[ticks.length - 1];
-  const min = ticks[0];
+function valueScale(m, start, length) {
+  const [min, max] = m.domain;
   const span = max - min || 1;
   return {
     max,
@@ -566,14 +562,8 @@ function renderCartesian(panel, m, state, alpha = 1) {
 
   // During a morph the scale is pinned to the target domain like
   // Recharts, which interpolates pixel positions on the new scale.
-  const tickCount = m.tickCount || 5;
-  const ticks = m.yTicks && m.yTicks.length
-    ? m.yTicks
-    : m.domainMax
-      ? Array.from({ length: tickCount }, (_, i) => (m.domainMax * i) / (tickCount - 1))
-      : domainTicks(m, tickCount);
-  const domainMin = ticks[0];
-  const domainMax = ticks[ticks.length - 1];
+  const ticks = m.ticks;
+  const [domainMin, domainMax] = m.domain;
 
   // Category positions: band centers for bars, evenly spaced points for
   // lines and areas.
@@ -627,7 +617,7 @@ function renderCartesian(panel, m, state, alpha = 1) {
       if (m.yTickLine) {
         svg += `<line orientation="left" class="recharts-cartesian-axis-tick-line" stroke="#666" fill="none" x1="${fmtF(plotX - TICK_SIZE)}" y1="${fmtF(yCoords[tk.index])}" x2="${fmtF(plotX)}" y2="${fmtF(yCoords[tk.index])}"/>`;
       }
-      svg += `<text orientation="left" width="${fmtF(yAxisW)}" x="${fmtF(labelX)}" y="${fmtF(tk.coord)}" stroke="none" fill="#666" class="recharts-text recharts-cartesian-axis-tick-value" text-anchor="end"><tspan dy="0.355em">${m.yTickLabels ? m.yTickLabels[tk.index] : fmtF(ticks[tk.index])}</tspan></text></g>`;
+      svg += `<text orientation="left" width="${fmtF(yAxisW)}" x="${fmtF(labelX)}" y="${fmtF(tk.coord)}" stroke="none" fill="#666" class="recharts-text recharts-cartesian-axis-tick-value" text-anchor="end"><tspan dy="0.355em">${escapeHTML(m.tickLabels[tk.index])}</tspan></text></g>`;
     }
     svg += "</g></g>";
   }
@@ -672,7 +662,7 @@ function renderCartesian(panel, m, state, alpha = 1) {
     // Stacked bars share one slot per category, like Recharts' stackId.
     const slots = m.stacked ? 1 : m.series.length;
     const [offsets, barSize] = barPositions(band, m.categoryGap, slots);
-    const scale = valueScale(m, vertical ? plotX : plotY, vertical ? plotW : plotH, ticks);
+    const scale = valueScale(m, vertical ? plotX : plotY, vertical ? plotW : plotH);
     // In a vertical layout the value axis grows from left to right, so the
     // scale is mirrored around the plot.
     const valuePos = (v) => (vertical ? plotX + plotW - (scale.pos(v) - plotX) : scale.pos(v));

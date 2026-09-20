@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -43,5 +44,15 @@ func TestLineModelValues(t *testing.T) {
 	}
 	if _, ok := s["gaps"]; ok {
 		t.Fatalf("full series has gaps: %v", s)
+	}
+}
+
+func TestValueScale(t *testing.T) {
+	m := renderModel(t, nil, LineChart(LineChartProps{Data: []Datum{{"a": 10, "b": 20}, {"a": 20, "b": 30}}}), templ.Join(YAxis(YAxisProps{TickFormatter: func(v any) string { return fmt.Sprintf("%v units", v) }}), Line(LineProps{DataKey: "a"}), Line(LineProps{DataKey: "b"})))
+	if got := fmt.Sprint(m["ticks"]); got != "[0 8 16 24 32]" {
+		t.Fatalf("ticks: %s", got)
+	}
+	if got := fmt.Sprint(m["tickLabels"]); got != "[0 units 8 units 16 units 24 units 32 units]" {
+		t.Fatalf("labels: %s", got)
 	}
 }

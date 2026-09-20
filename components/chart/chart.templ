@@ -1096,20 +1096,6 @@ func hasFillColumn(data []Datum) bool {
 	return false
 }
 
-// seriesMin is the lowest value across all series, so a negative domain
-// keeps its zero baseline.
-func seriesMin(series []ModelSeries) float64 {
-	min := 0.0
-	for _, s := range series {
-		for _, v := range s.Values {
-			if v < min {
-				min = v
-			}
-		}
-	}
-	return min
-}
-
 // labelListModel precomputes the labels of a LabelList, defaulting to the
 // series data key like Recharts does.
 func labelListModel(ll LabelListProps, seriesKey string, data []Datum) LabelListModel {
@@ -1167,17 +1153,6 @@ func buildModel(ctx context.Context, st *chartState) Model {
 		m.YAxisHide = y.Hide
 		if y.Hide {
 			m.YAxisWidth = 0
-		}
-		if len(y.Ticks) > 0 && st.layout != "vertical" {
-			m.YTicks = y.Ticks
-			m.YTickLabels = make([]string, len(y.Ticks))
-			for i, tick := range y.Ticks {
-				if y.TickFormatter != nil {
-					m.YTickLabels[i] = y.TickFormatter(tick)
-				} else {
-					m.YTickLabels[i] = str(tick)
-				}
-			}
 		}
 	}
 	if st.margin != nil {
@@ -1275,7 +1250,6 @@ func buildModel(ctx context.Context, st *chartState) Model {
 			m.Series = append(m.Series, s)
 		}
 		m.Stacked = stacked
-		m.DomainMin = seriesMin(m.Series)
 	} else if st.kind == "line" {
 		for _, l := range st.lines {
 			s := modelSeries(config, l.props.DataKey, "", 0, st.data)
@@ -1339,6 +1313,7 @@ func buildModel(ctx context.Context, st *chartState) Model {
 			}
 		}
 	}
+	setValueScale(&m, st)
 	applyIcons(ctx, &m, config)
 	return m
 }
@@ -1688,8 +1663,9 @@ type Model struct {
 	YAxisWidth    float64               `json:"yAxisWidth,omitempty"`
 	YAxisMargin   float64               `json:"yAxisMargin,omitempty"` // tickMargin of the y axis
 	TickCount     int                   `json:"tickCount,omitempty"`   // y ticks, Recharts default 5
-	YTicks         []float64             `json:"yTicks,omitempty"`      // fixed value ticks, the domain spans them
-	YTickLabels    []string              `json:"yTickLabels,omitempty"` // the fixed ticks formatted
+	Domain        [2]float64            `json:"domain"`
+	Ticks         []float64             `json:"ticks,omitempty"`
+	TickLabels    []string              `json:"tickLabels,omitempty"`
 	XTickLine     bool                  `json:"xTickLine,omitempty"`
 	XAxisLine     bool                  `json:"xAxisLine,omitempty"`
 	YTickLine     bool                  `json:"yTickLine,omitempty"`
@@ -1705,7 +1681,6 @@ type Model struct {
 	Layout      string  `json:"layout,omitempty"`
 	XAxisHide   bool    `json:"xAxisHide,omitempty"`
 	YAxisHide   bool    `json:"yAxisHide,omitempty"`
-	DomainMin   float64 `json:"domainMin,omitempty"` // negative values extend the domain
 	Stacked       bool                  `json:"stacked,omitempty"`
 	StackOffset   string                `json:"stackOffset,omitempty"` // "expand" normalizes each stack to 1
 	Defs          []LinearGradientProps `json:"defs,omitempty"`

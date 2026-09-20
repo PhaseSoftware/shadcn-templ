@@ -1796,20 +1796,6 @@ func hasFillColumn(data []Datum) bool {
 	return false
 }
 
-// seriesMin is the lowest value across all series, so a negative domain
-// keeps its zero baseline.
-func seriesMin(series []ModelSeries) float64 {
-	min := 0.0
-	for _, s := range series {
-		for _, v := range s.Values {
-			if v < min {
-				min = v
-			}
-		}
-	}
-	return min
-}
-
 // labelListModel precomputes the labels of a LabelList, defaulting to the
 // series data key like Recharts does.
 func labelListModel(ll LabelListProps, seriesKey string, data []Datum) LabelListModel {
@@ -1867,17 +1853,6 @@ func buildModel(ctx context.Context, st *chartState) Model {
 		m.YAxisHide = y.Hide
 		if y.Hide {
 			m.YAxisWidth = 0
-		}
-		if len(y.Ticks) > 0 && st.layout != "vertical" {
-			m.YTicks = y.Ticks
-			m.YTickLabels = make([]string, len(y.Ticks))
-			for i, tick := range y.Ticks {
-				if y.TickFormatter != nil {
-					m.YTickLabels[i] = y.TickFormatter(tick)
-				} else {
-					m.YTickLabels[i] = str(tick)
-				}
-			}
 		}
 	}
 	if st.margin != nil {
@@ -1975,7 +1950,6 @@ func buildModel(ctx context.Context, st *chartState) Model {
 			m.Series = append(m.Series, s)
 		}
 		m.Stacked = stacked
-		m.DomainMin = seriesMin(m.Series)
 	} else if st.kind == "line" {
 		for _, l := range st.lines {
 			s := modelSeries(config, l.props.DataKey, "", 0, st.data)
@@ -2039,6 +2013,7 @@ func buildModel(ctx context.Context, st *chartState) Model {
 			}
 		}
 	}
+	setValueScale(&m, st)
 	applyIcons(ctx, &m, config)
 	return m
 }
@@ -2421,7 +2396,7 @@ func legendContent(items []LegendItem, p *LegendProps) templ.Component {
 				var templ_7745c5c3_Var34 string
 				templ_7745c5c3_Var34, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues("background-color:" + it.Color)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/chart/chart.templ`, Line: 1659, Col: 88}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/chart/chart.templ`, Line: 1634, Col: 88}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 				if templ_7745c5c3_Err != nil {
@@ -2435,7 +2410,7 @@ func legendContent(items []LegendItem, p *LegendProps) templ.Component {
 			var templ_7745c5c3_Var35 string
 			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(it.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/chart/chart.templ`, Line: 1661, Col: 15}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/chart/chart.templ`, Line: 1636, Col: 15}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 			if templ_7745c5c3_Err != nil {
@@ -2466,35 +2441,35 @@ func legendPad(verticalAlign string) string {
 // re-renders the SVG at real container pixels (Recharts'
 // ResponsiveContainer behavior) and drives tooltip and cursor from it.
 type Model struct {
-	Kind           string    `json:"kind"` // "bar" | "area" | "pie"
-	MarginTop      float64   `json:"marginTop"`
-	MarginRight    float64   `json:"marginRight"`
-	MarginBottom   float64   `json:"marginBottom"`
-	MarginLeft     float64   `json:"marginLeft"`
-	XAxisHeight    float64   `json:"xAxisHeight,omitempty"`
-	TickMargin     float64   `json:"tickMargin,omitempty"`
-	MinTickGap     float64   `json:"minTickGap,omitempty"`
-	YAxisWidth     float64   `json:"yAxisWidth,omitempty"`
-	YAxisMargin    float64   `json:"yAxisMargin,omitempty"` // tickMargin of the y axis
-	TickCount      int       `json:"tickCount,omitempty"`   // y ticks, Recharts default 5
-	YTicks         []float64 `json:"yTicks,omitempty"`      // fixed value ticks, the domain spans them
-	YTickLabels    []string  `json:"yTickLabels,omitempty"` // the fixed ticks formatted
-	XTickLine      bool      `json:"xTickLine,omitempty"`
-	XAxisLine      bool      `json:"xAxisLine,omitempty"`
-	YTickLine      bool      `json:"yTickLine,omitempty"`
-	YAxisLine      bool      `json:"yAxisLine,omitempty"`
-	LegendHeight   float64   `json:"legendHeight,omitempty"`
-	LegendVAlign   string    `json:"legendVAlign,omitempty"` // "top" raises the legend above the plot
-	CategoryGap    float64   `json:"categoryGap,omitempty"`
-	Radius         float64   `json:"radius,omitempty"`
-	Grid           bool      `json:"grid,omitempty"`
-	GridHorizontal bool      `json:"gridHorizontal,omitempty"`
-	GridVertical   bool      `json:"gridVertical,omitempty"`
+	Kind           string     `json:"kind"` // "bar" | "area" | "pie"
+	MarginTop      float64    `json:"marginTop"`
+	MarginRight    float64    `json:"marginRight"`
+	MarginBottom   float64    `json:"marginBottom"`
+	MarginLeft     float64    `json:"marginLeft"`
+	XAxisHeight    float64    `json:"xAxisHeight,omitempty"`
+	TickMargin     float64    `json:"tickMargin,omitempty"`
+	MinTickGap     float64    `json:"minTickGap,omitempty"`
+	YAxisWidth     float64    `json:"yAxisWidth,omitempty"`
+	YAxisMargin    float64    `json:"yAxisMargin,omitempty"` // tickMargin of the y axis
+	TickCount      int        `json:"tickCount,omitempty"`   // y ticks, Recharts default 5
+	Domain         [2]float64 `json:"domain"`
+	Ticks          []float64  `json:"ticks,omitempty"`
+	TickLabels     []string   `json:"tickLabels,omitempty"`
+	XTickLine      bool       `json:"xTickLine,omitempty"`
+	XAxisLine      bool       `json:"xAxisLine,omitempty"`
+	YTickLine      bool       `json:"yTickLine,omitempty"`
+	YAxisLine      bool       `json:"yAxisLine,omitempty"`
+	LegendHeight   float64    `json:"legendHeight,omitempty"`
+	LegendVAlign   string     `json:"legendVAlign,omitempty"` // "top" raises the legend above the plot
+	CategoryGap    float64    `json:"categoryGap,omitempty"`
+	Radius         float64    `json:"radius,omitempty"`
+	Grid           bool       `json:"grid,omitempty"`
+	GridHorizontal bool       `json:"gridHorizontal,omitempty"`
+	GridVertical   bool       `json:"gridVertical,omitempty"`
 	// Layout "vertical" swaps the axes and draws the bars horizontally.
 	Layout      string                `json:"layout,omitempty"`
 	XAxisHide   bool                  `json:"xAxisHide,omitempty"`
 	YAxisHide   bool                  `json:"yAxisHide,omitempty"`
-	DomainMin   float64               `json:"domainMin,omitempty"` // negative values extend the domain
 	Stacked     bool                  `json:"stacked,omitempty"`
 	StackOffset string                `json:"stackOffset,omitempty"` // "expand" normalizes each stack to 1
 	Defs        []LinearGradientProps `json:"defs,omitempty"`

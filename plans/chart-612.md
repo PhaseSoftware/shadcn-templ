@@ -48,7 +48,7 @@ Checks: `go test ./components/chart/`, `node tmp/chart-612/probe.mjs chromium tm
 
 ### 2. The value scale in Go
 
-- [ ] Done
+- [x] Done
 
 `components/chart/scale.go`: literal ports of recharts-scale `getDigitCount`, `getFormatStep`, `getNiceTickValues` and `getTickValuesFixedDomain` under those names, plus Recharts' `parseSpecifiedDomain`. `buildModel` computes the cartesian value axis once: data domain over the visible, non gap values (stacked sums when stacked, `[0, 1]` for `expand`, like `domainTicks` today), default specified domain `[0, "auto"]`, nice ticks, `Model.Domain [2]float64`, `Model.Ticks []float64`, `Model.TickLabels []string` formatted by the numeric axis' `TickFormatter` or `fmt` like `fmtF` today (three decimals, trailing zeros dropped). `chart.js`: `renderCartesian` reads `m.domain`, `m.ticks` and `m.tickLabels` instead of calling `domainTicks`, `domainOf` or the dead `m.domainMax` branch; the morph pin uses `m.domain`. Remove what becomes unused (`Model.DomainMin`, `domainOf`, the `m.domainMax` branch); `domainTicks` and `niceTickValues` stay for the radar. `chart_test.go`: the model of a two series line chart carries the ticks `niceTickValues` produced before (take the expected numbers from the baseline).
 
@@ -125,5 +125,13 @@ Checks: `go build ./...`, `go vet ./components/chart/`.
 - `go test ./components/chart/` and both browser runs passed on unchanged PR component sources. The referenced button test is absent on this PR branch; the helper uses templ's public child-rendering API.
 - Existing development watchers are running. No generator or minifier was run manually. Plan status remains Planner-owned per README.
 
+
+### Task 2
+
+- Moved the cartesian value domain, ticks and formatted labels into `scale.go` / `buildModel`; removed the old YTicks/YTickLabels/DomainMin model fields and dead browser domainOf/domainMax paths. Bars and morph targets read the shipped domain; radar retains its existing scale.
+- Added the numeric-axis formatter test (two series, ticks 0/8/16/24/32), and escaped formatted SVG tick text.
+- `go test ./components/chart/`, JS syntax and `git diff --check` passed. Both browser captures match all baseline tick texts and paths, including the three area-axis ticks.
+- Implementation note: the upstream control flow is ported with float64 arithmetic, preserving the existing JS renderer's arithmetic rather than adding Decimal.js-equivalent dependencies. Single-valued and reversed intervals follow recharts-scale; expand retains the existing evenly spaced 0..1 ticks.
+- The watcher regenerated `chart_templ.go`.
 
 ## Planner review
