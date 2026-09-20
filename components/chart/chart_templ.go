@@ -296,6 +296,7 @@ type XAxisProps struct {
 	AxisLine      bool
 	TickMargin    float64
 	MinTickGap    float64 // defaults to Recharts' 5
+	TickCount     int     // defaults to Recharts 5
 	TickFormatter func(any) string
 	// Ticks is Recharts' ticks prop: drawn values, independent of Domain.
 	Ticks []float64
@@ -1872,7 +1873,6 @@ func buildModel(ctx context.Context, st *chartState) Model {
 			m.YAxisWidth = 60
 		}
 		m.YAxisMargin = y.TickMargin
-		m.TickCount = y.TickCount
 		m.YTickLine = y.TickLine
 		m.YAxisLine = y.AxisLine
 		m.YAxisHide = y.Hide
@@ -2485,7 +2485,7 @@ type Model struct {
 	MinTickGap        float64    `json:"minTickGap,omitempty"`
 	YAxisWidth        float64    `json:"yAxisWidth,omitempty"`
 	YAxisMargin       float64    `json:"yAxisMargin,omitempty"` // tickMargin of the y axis
-	TickCount         int        `json:"tickCount,omitempty"`   // y ticks, Recharts default 5
+	TickCount         int        `json:"tickCount,omitempty"`   // numeric axis ticks, Recharts default 5
 	AllowDataOverflow bool       `json:"allowDataOverflow,omitempty"`
 	Domain            [2]float64 `json:"domain"`
 	Ticks             []float64  `json:"ticks,omitempty"`

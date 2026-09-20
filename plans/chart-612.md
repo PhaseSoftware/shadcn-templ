@@ -2,7 +2,7 @@
 
 - **Planner**: Claude
 - **Executor**: Codex
-- **Status**: ready
+- **Status**: in progress
 
 ## Context
 
@@ -116,6 +116,16 @@ Done when: `go build ./...` passes and `go vet ./components/chart/` is clean.
 
 Checks: `go build ./...`, `go vet ./components/chart/`.
 
+### 9. TickCount on the numeric axis
+
+- [x] Done
+
+`chart.templ`: `TickCount int` on `XAxisProps` next to `MinTickGap`, doc comment `// defaults to Recharts 5`, the wording `YAxisProps.TickCount` already uses. `buildModel` stops setting `m.TickCount` from the y axis unconditionally; `setValueScale` reads `TickCount` from the same axis it already reads `Ticks`, `Domain` and `AllowDataOverflow` from, so a vertical layout takes the x axis' count and every other layout the y axis'. `m.TickCount` keeps its meaning for the radar, which reads it in `chart.js` through `domainTicks(m, m.tickCount || 5)`: it must still carry the y axis value there, so set it from the numeric axis in `setValueScale` and leave the radar path alone.
+
+Done when: on a vertical bar chart `XAxisProps{TickCount: 3}` yields three numeric x ticks and `YAxisProps{TickCount: 3}` no longer changes them; on a default layout `YAxisProps{TickCount: 3}` still yields three y ticks as it does today.
+
+Checks: `go test ./components/chart/` with a test covering both layouts, `probe.mjs` in chromium and webkit diffed against `tmp/chart-612/baseline-*.json` (zero differences, all 6 docs charts and 68 gallery demos), `go vet ./components/chart/`, `git diff --check`.
+
 ## Executor log
 
 ### Task 1
@@ -179,4 +189,46 @@ Checks: `go build ./...`, `go vet ./components/chart/`.
 - All eight tasks are ready for Planner review. Browser fixtures, captures, assertion scripts and the motion screenshot remain under gitignored `tmp/chart-612/` as planned. The source changes and this log are committed one task per commit on top of the author's original head, without rewriting it. Push target verified: `miguelcsilva/shadcn-templ`, `chart-line-gaps-ticks-dashes`, maintainerCanModify=true.
 - No templ generator or JS minifier was run manually. The plan header/status and Planner review section remain Planner-owned. Merge and author reply remain with the user.
 
+### Task 9
+
+- Added XAxisProps.TickCount with the existing Y-axis default documentation. Cartesian setValueScale reads and stores TickCount from the numeric axis: X for vertical layouts, Y otherwise. Removed the unconditional Y-axis assignment from buildModel.
+- Added a six-case model regression test covering explicit counts, defaults and category-axis isolation in both layouts. With data 20/80, three ticks are 0/40/80; default ticks are 0/20/40/60/80.
+- Radar model construction and chart.js are unchanged; the radar still returns before cartesian scale computation and retains its existing browser default.
+- `go test ./components/chart/`, `go vet ./components/chart/`, gofmt and `git diff --check` passed. Fresh Chromium and WebKit captures (`tmp/chart-612/task9-*.json`) match all six documentation charts and 68 registry demos exactly; all existing fixture assertions pass.
+- The watcher updated chart_templ.go; no generator or minifier was run manually. plans/README.md is absent on the PR branch, so its rules were read from main. The Planner's pending task text, status and review were preserved. Task 9 is ready for the requested review before merge.
+
 ## Planner review
+
+Reviewed at `08149818`, the PR head on `miguelcsilva/shadcn-templ`, `chart-line-gaps-ticks-dashes`. All eight tasks accepted. The Planner re-ran every check itself rather than reading the log: `go build ./...`, `go vet ./components/chart/`, `go test ./components/chart/ ./internal/registryapi/`, `gofmt -l`, `git diff --check` all pass, and `probe.mjs` was run fresh in Chromium and WebKit against the user's server on 8090. Both engines report zero differences from `baseline-*.json` across the six documentation charts and all 68 registry demos. The WebKit browser had been removed from the Playwright cache since `plans/a11y-600.md`; it was reinstalled for this review.
+
+**The ports were checked line by line against the upstream sources, not just for plausibility.**
+
+- `getDigitCount`, `getFormatStep`, `calculateStep`, `getTickOfSingleValue`, `getNiceTickValues` and `getTickValuesFixedDomain` match recharts-scale, including the details that are easy to lose: `calculateStep`'s inverted zero test (`min > 0 || max < 0` is the negation of upstream's `min <= 0 && max >= 0`), the correction-factor loop standing in for upstream's recursion, `max(tickCount, 2)` reaching `calculateStep` while the raw `tickCount` reaches `getTickOfSingleValue`, the `0.1 * step` tolerance on the range end, and `getTickValuesFixedDomain`'s `< max - 0.99 * step` guard with `max` appended.
+- `parseSpecifiedDomain` matches Recharts `ChartUtils`, both regexes included. The function form of `domain` is absent, as decided.
+- `Line.repeat` and `Line.getStrokeDasharray` are literal, and the existing sweep was correctly renamed `generateSimpleStrokeDasharray`.
+- The `allowDataOverflow` clip rect matches Recharts' `needClipX`/`needClipY` geometry: the clipped axis gets the plot bounds, the free axis gets double size centred on the plot. This was not in the plan text and is the correct 1:1 addition, since Recharts clips whenever an axis sets the prop.
+- `gappedPath`'s `M x,y Z` for a single-point run matches d3-shape, whose `lineEnd` closes the path when a segment holds one point. The same holds for `gappedAreaPath`.
+
+**Fixture semantics were verified by computing the expected ticks from the upstream algorithm by hand, not by trusting the assertions.** `[0 100 200 300]` on a domain of `[0 300]` for `Ticks` alone, `[180 190 200 210 220]` for `["dataMin","dataMax"]`, `[100 130 160 190 220]` where the data extends a specified `200`, `[100 125 150 175 200]` with `AllowDataOverflow` and the curve clipped at `y = -49`, `[170 185 200 215 230]` for the offset form. Each matches what Recharts produces. The gap fixture drops exactly the right tooltip rows, dots and labels, and hides the tooltip on the fully empty row. The `expand` fixture normalizes over visible series only.
+
+**Verdict per task.** All accepted: 1 (`bd5ac398`), 2 (`b71f61cc`), 3 (`cfc08c98`), 4 (`4758154b`), 5 (`63c602de`), 6 (`5ce27caa`), 7 (`4d9fa601`), 8 (`08149818`).
+
+**The two deviations the Executor logged are correct and the plan text was wrong, not the work.**
+
+- Task 4, "one dot less than rows": with a partially empty row and a fully empty row, the first series has two gaps, so four dots over six rows. The Executor's reading is right.
+- Task 3, "drawn ticks": explicit `Ticks` control the drawn labels while the domain stays zero-based, which is exactly `getTicksOfScale`. The plan's own Context said so; the task wording was looser.
+
+**Beyond the plan, and right.** Registering `components/chart/scale.go` in `registry.json` with a regression test in `internal/registryapi`. Without it a freshly installed chart would not compile, since the registry enumerates files explicitly. This was a real hole in the plan.
+
+**Two behaviour changes worth recording, both toward Recharts.**
+
+- A chart whose values are all negative now spans the data instead of stretching to zero at the top, because the default `[0, "auto"]` runs through `parseSpecifiedDomain` rather than the old forced zero maximum. No demo has such data, hence no baseline movement.
+- A vertical layout now draws its numeric x axis when the axis is not hidden. All three vertical demos pass `Hide: true`, so nothing moved; the Planner confirmed that is why the baselines hold, not luck.
+
+**Follow-ups, none blocking the merge.**
+
+1. `XAxisProps` has no `TickCount`, so in a vertical layout the numeric x axis takes its tick count from `YAxisProps.TickCount`, the category axis. Measured: `YAxisProps{TickCount: 3}` on a horizontal bar chart yields the x ticks `[0 45 90]`, and `8` yields eight of them. Recharts puts `tickCount` on each axis with a default of 5. Now that the numeric x axis is drawn and reads `Ticks`, `Domain` and `AllowDataOverflow` from `XAxisProps`, `TickCount` belongs there too and `setValueScale` should read it from the numeric axis.
+2. Computed tick values now reach the JSON payload carrying float noise, for example `600.0000000000001` and its ticks. The arithmetic is unchanged from the old browser code and every label is rounded before display, so nothing renders differently, but upstream uses Decimal.js and its values are exact. Worth a decision the next time this file is opened: either accept it in a comment or round the step in `getFormatStep`.
+3. `parseSpecifiedDomain` converts numbers with `strconv.ParseFloat(str(value), 64)` where the package already has `num(any) float64` for exactly that. Reusing it would be the house idiom, though `num` covers fewer integer widths than the switch in `scale.go`.
+
+Remaining outside the plan: the merge and the reply to the author.

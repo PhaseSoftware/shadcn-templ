@@ -216,10 +216,7 @@ func valueDomain(m Model) [2]float64 {
 }
 
 func setValueScale(m *Model, st *chartState) {
-	count := m.TickCount
-	if count <= 0 {
-		count = 5
-	}
+	count := 0
 	var specified []any
 	var explicitTicks []float64
 	allowOverflow := false
@@ -231,10 +228,16 @@ func setValueScale(m *Model, st *chartState) {
 	}
 	if st.layout == "vertical" {
 		if st.x != nil {
+			count = st.x.TickCount
 			specified, explicitTicks, allowOverflow = st.x.Domain, st.x.Ticks, st.x.AllowDataOverflow
 		}
 	} else if st.y != nil {
+		count = st.y.TickCount
 		specified, explicitTicks, allowOverflow = st.y.Domain, st.y.Ticks, st.y.AllowDataOverflow
+	}
+	m.TickCount = count
+	if count <= 0 {
+		count = 5
 	}
 	if len(specified) == 0 {
 		specified = []any{0, "auto"}

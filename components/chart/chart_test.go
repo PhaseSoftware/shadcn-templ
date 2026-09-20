@@ -195,3 +195,34 @@ func TestNumericXAxisFormatter(t *testing.T) {
 		t.Fatalf("numeric X labels: %s", got)
 	}
 }
+
+func TestNumericAxisTickCount(t *testing.T) {
+	for _, tc := range []struct {
+		name, layout              string
+		xCount, yCount, wantCount int
+		wantTicks                 string
+	}{
+		{"numeric x", "vertical", 3, 8, 3, "[0 40 80]"},
+		{"category y ignored", "vertical", 0, 3, 0, "[0 20 40 60 80]"},
+		{"vertical default", "vertical", 0, 0, 0, "[0 20 40 60 80]"},
+		{"numeric y", "", 8, 3, 3, "[0 40 80]"},
+		{"category x ignored", "", 3, 0, 0, "[0 20 40 60 80]"},
+		{"default layout", "", 0, 0, 0, "[0 20 40 60 80]"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := renderModel(t, nil, BarChart(BarChartProps{Layout: tc.layout, Data: []Datum{{"v": 20}, {"v": 80}}}), templ.Join(
+				XAxis(XAxisProps{TickCount: tc.xCount}), YAxis(YAxisProps{TickCount: tc.yCount}), Bar(BarProps{DataKey: "v"}),
+			))
+			if got := fmt.Sprintf("%.9g", m["ticks"]); got != tc.wantTicks {
+				t.Fatalf("ticks=%s want %s", got, tc.wantTicks)
+			}
+			if tc.wantCount == 0 {
+				if _, ok := m["tickCount"]; ok {
+					t.Fatalf("default tickCount should be omitted: %v", m["tickCount"])
+				}
+			} else if m["tickCount"] != float64(tc.wantCount) {
+				t.Fatalf("tickCount=%v want %d", m["tickCount"], tc.wantCount)
+			}
+		})
+	}
+}
