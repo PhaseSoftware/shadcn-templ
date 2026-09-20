@@ -157,3 +157,34 @@ func TestDotShow(t *testing.T) {
 		t.Fatal("nil predicate must omit shown")
 	}
 }
+
+func TestHiddenSeries(t *testing.T) {
+	data := []Datum{{"a": 10, "b": 1000, "c": 20}, {"a": 20, "b": 2000, "c": 30}, {"a": 30, "b": 3000, "c": 40}}
+	for _, kind := range []string{"line", "bar", "area"} {
+		t.Run(kind, func(t *testing.T) {
+			var root, children templ.Component
+			wantDomain := "[0 40]"
+			switch kind {
+			case "line":
+				root = LineChart(LineChartProps{Data: data})
+				children = templ.Join(Line(LineProps{DataKey: "a"}), Line(LineProps{DataKey: "b", Hide: true}), Line(LineProps{DataKey: "c"}))
+			case "bar":
+				root = BarChart(BarChartProps{Data: data})
+				children = templ.Join(Bar(BarProps{DataKey: "a", StackID: "s"}), Bar(BarProps{DataKey: "b", StackID: "s", Hide: true}), Bar(BarProps{DataKey: "c", StackID: "s"}))
+				wantDomain = "[0 80]"
+			case "area":
+				root = AreaChart(AreaChartProps{Data: data})
+				children = templ.Join(Area(AreaProps{DataKey: "a", StackID: "s"}), Area(AreaProps{DataKey: "b", StackID: "s", Hide: true}), Area(AreaProps{DataKey: "c", StackID: "s"}))
+				wantDomain = "[0 80]"
+			}
+			m := renderModel(t, nil, root, children)
+			series := m["series"].([]any)
+			if len(series) != 3 || series[1].(map[string]any)["hidden"] != true {
+				t.Fatalf("hidden series lost: %v", series)
+			}
+			if got := fmt.Sprint(m["domain"]); got != wantDomain {
+				t.Fatalf("domain=%s want %s", got, wantDomain)
+			}
+		})
+	}
+}

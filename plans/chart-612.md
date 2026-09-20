@@ -98,7 +98,7 @@ Checks: `go test ./components/chart/`, `probe.mjs` chromium.
 
 ### 7. Hidden series
 
-- [ ] Done
+- [x] Done
 
 `chart.templ`: `Hide bool` on `LineProps`, `AreaProps`, `BarProps` into `ModelSeries.Hidden`; the data domain from task 2 skips hidden series. `chart.js`: remove `hiddenKeys`, `isHidden` reading `m.hidden`, the container `MutationObserver` and the `data-key` attribute; `expandValues` and the stack bases skip hidden series; the line, area and bar branches push placeholder geometry for a hidden series (so indices stay aligned, as the PR does) and draw nothing; `tooltipHTML` and `showActiveDots` skip `s.hidden`; the legend is untouched. Fixture `hidden`: three lines with one hidden, a stacked bar chart with one hidden series.
 
@@ -162,5 +162,12 @@ Checks: `go build ./...`, `go vet ./components/chart/`.
 - Replaced DotProps.Indices with Show(index, row), evaluated once per row into DotModel.Shown; nil omits the field. Browser dots skip false rows while retaining gap filtering.
 - Added Go checks for predicate inputs, call count, selected rows and nil behavior. Chromium shows exactly two dots and `chart-line-dots` matches its baseline; previous fixtures still pass.
 - `go test ./components/chart/`, JS syntax and `git diff --check` passed. Aligned DotProps/DotModel fields; generated Go came from the watcher.
+
+### Task 7
+
+- Added Hide on Line/Area/Bar and Hidden in the model. Hidden values leave Go domains, browser stacks/normalization and grouped-bar slots. Geometry placeholders retain series indexing; legends retain entries.
+- Removed the hidden-key attribute protocol, per-container MutationObserver and line data-key attributes. Tooltip rows and active dots use the model flag.
+- Go tests cover line domains and stacked bar/area domains with a much larger hidden series. Both engines show two lines, three legend entries, a visible-series axis maximum of 40 and six bar segments (two per row). Normalized stacked-area fixture also has only two curves and keeps 0..1.
+- All fixture assertions and all six docs / 68 gallery baseline comparisons pass in both engines. `go test ./components/chart/`, JS syntax, empty legacy-attribute search and `git diff --check` passed.
 
 ## Planner review

@@ -115,10 +115,10 @@ function expandValues(series) {
   const vals = series.map(() => new Array(n).fill(0));
   for (let i = 0; i < n; i++) {
     let sum = 0;
-    for (const s of series) sum += s.values[i];
+    for (const s of series) if (!s.hidden) sum += s.values[i];
     if (sum > 0) {
       series.forEach((s, si) => {
-        vals[si][i] = s.values[i] / sum;
+        if (!s.hidden) vals[si][i] = s.values[i] / sum;
       });
     }
   }
@@ -303,18 +303,6 @@ function monotonePath(xs, ys) {
 /* isGap says whether a series has no value at a row. */
 function isGap(s, i) {
   return !!(s.gaps && s.gaps[i]);
-}
-
-/* hiddenKeys reads the series a container hides, its data-tui-chart-hidden
- * attribute as space separated data keys: the pendant of Recharts' hide
- * prop on a series, settable from the page. */
-function hiddenKeys(container) {
-  const attr = container && container.getAttribute("data-tui-chart-hidden");
-  return attr ? attr.split(/\s+/).filter(Boolean) : [];
-}
-
-function isHidden(m, s) {
-  return !!(m.hidden && m.hidden.includes(s.key));
 }
 
 /* gappedPath draws one subpath per run of values, the pendant of
@@ -708,7 +696,7 @@ function renderCartesian(panel, m, state, alpha = 1) {
     // vertical and the bars grow to the right.
     band = bandSize;
     // Stacked bars share one slot per category, like Recharts' stackId.
-    const slots = m.stacked ? 1 : m.series.length;
+    const slots = m.stacked ? 1 : m.series.filter(s => !s.hidden).length;
     const [offsets, barSize] = barPositions(band, m.categoryGap, slots);
     const scale = valueScale(m, vertical ? plotX : plotY, vertical ? plotW : plotH);
     // In a vertical layout the value axis grows from left to right, so the
@@ -716,11 +704,18 @@ function renderCartesian(panel, m, state, alpha = 1) {
     const valuePos = (v) => (vertical ? plotX + plotW - (scale.pos(v) - plotX) : scale.pos(v));
     const zero = vertical ? plotX + plotW - (scale.zero - plotX) : scale.zero;
 
+    let visibleIndex = 0;
     const stackBase = new Array(n).fill(0);
     state.tops = [];
     for (let si = 0; si < m.series.length; si++) {
       const s = m.series[si];
-      const slot = m.stacked ? 0 : si;
+      if (s.hidden) {
+        state.tops.push([]);
+        state.points.rects.push([]);
+        continue;
+      }
+      const slot = m.stacked ? 0 : visibleIndex++;
+
       const tops = [];
       const rects = [];
       // Recharts' Bar geometry keeps the rectangle signed: the origin is
@@ -845,7 +840,7 @@ function renderCartesian(panel, m, state, alpha = 1) {
       // the previous point picked by prevPointsDiffFactor.
       const sx = morphPoints(state.morph, si, cats.slice(), "xs");
       const top = morphPoints(state.morph, si, vals[si].map((v) => linearY(v - domainMin, domainMax - domainMin, plotY, plotH)), "tops");
-      if (isHidden(m, s)) {
+      if (s.hidden) {
         state.tops.push(top);
         state.points.xs.push(sx);
         continue;
@@ -862,7 +857,7 @@ function renderCartesian(panel, m, state, alpha = 1) {
         dash = ` stroke-dasharray="${pattern}"`;
       }
       svg +=
-        `<g class="recharts-layer recharts-line" data-key="${s.key}">` +
+        `<g class="recharts-layer recharts-line">` +
         `<path class="recharts-curve recharts-line-curve" stroke="${s.stroke || s.color}" stroke-width="${s.strokeWidth || 1}" fill="none"${dash} d="${d}"/>`;
       // Dots and labels appear when the entrance and the update morph
       // finished, like Recharts' isAnimationFinished gate on renderDots
@@ -923,6 +918,11 @@ function renderCartesian(panel, m, state, alpha = 1) {
           : vals[si].map((v) => linearY(v - domainMin, domainMax - domainMin, plotY, plotH)),
         "tops"
       );
+      if (s.hidden) {
+        state.tops.push(top);
+        state.points.xs.push(sx);
+        continue;
+      }
       const fill = (s.fill || "").replace("url(#", `url(#${state.uid}-`) || s.color;
       const fillOpacity = s.fillOpacity || 0.6;
       const areaD = m.stacked ? areaPathBetween(s.curve, sx, top, base) : gappedAreaPath(s.curve, sx, top, baseline, s.gaps);
@@ -1705,7 +1705,7 @@ function tooltipHTML(m, i, pieIndex = 0) {
   // the config label of its own data key, like getPayloadConfigFromPayload
   // reading item.dataKey.
   const pie = m.kind === "pie" ? m.pies[pieIndex] : null;
-  const payloadCount = pie ? 1 : m.series.filter(s => !isGap(s, i) && !isHidden(m, s)).length;
+  const payloadCount = pie ? 1 : m.series.filter(s => !isGap(s, i) && !s.hidden).length;
   if (!payloadCount) return "";
   const label = pie ? pie.seriesLabel || t.label : t.label || (m.tooltipLabels && m.tooltipLabels[i]) || m.labels[i];
   // Like ChartTooltipContent: a single non-dot payload nests the label
@@ -1734,7 +1734,7 @@ function tooltipHTML(m, i, pieIndex = 0) {
     return html;
   }
   m.series.forEach((s, si) => {
-    if (isGap(s, i) || isHidden(m, s)) return;
+    if (isGap(s, i) || s.hidden) return;
     const rowCls =
       "flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-muted-foreground" +
       (t.indicator !== "line" && t.indicator !== "dashed" ? " items-center" : "");
@@ -1840,7 +1840,7 @@ function showActiveDots(panel, m, state, i) {
     // renderActivePoint's defaults: r 4, white stroke of 2, filled with the
     // item's main color. getLegendItemColor prefers the stroke over the fill.
     const series = m.series[s];
-    if (isGap(series, i) || isHidden(m, series)) continue;
+    if (isGap(series, i) || series.hidden) continue;
     const r = series.activeDotR || 4;
     const mainColor = series.stroke && series.stroke !== "none" ? series.stroke : series.fill || series.color || "none";
     // A radar point carries its own x, the cartesian charts share the
@@ -1885,7 +1885,6 @@ function initPanel(script) {
   const state = { uid: "tui-chart-" + uid++ };
 
   const render = (alpha = 1) => {
-    m.hidden = hiddenKeys(container);
     if (m.kind === "pie") renderPie(panel, m, state, alpha);
     else if (m.kind === "radar") renderRadar(panel, m, state, alpha);
     else if (m.kind === "radial") renderRadial(panel, m, state, alpha);
@@ -1949,11 +1948,6 @@ function initPanel(script) {
     }
   });
   ro.observe(panel);
-  if (container) {
-    new MutationObserver(() => {
-      if (state.mounted) render(1);
-    }).observe(container, { attributes: true, attributeFilter: ["data-tui-chart-hidden"] });
-  }
 
   // Without a declared Tooltip child Recharts renders no tooltip, no
   // active dots and no cursor, so none of the hover wiring applies.

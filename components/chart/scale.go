@@ -190,12 +190,17 @@ func valueDomain(m Model) [2]float64 {
 		for i := range m.Labels {
 			sum := 0.0
 			for _, s := range m.Series {
-				sum += s.Values[i]
+				if !s.Hidden {
+					sum += s.Values[i]
+				}
 			}
 			add(sum)
 		}
 	} else {
 		for _, s := range m.Series {
+			if s.Hidden {
+				continue
+			}
 			for i, v := range s.Values {
 				if len(s.Gaps) > i && s.Gaps[i] {
 					continue

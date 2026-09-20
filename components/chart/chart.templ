@@ -279,6 +279,9 @@ type LinearGradientProps struct {
 
 // AreaProps is the pendant of one Recharts Area.
 type AreaProps struct {
+	// Hide is Recharts' hide prop: omit geometry, tooltip, domain and stack
+	// contribution while retaining the legend entry.
+	Hide    bool
 	DataKey string
 	Type    CurveType
 	// Fill and Stroke are used verbatim, e.g. "url(#fillDesktop)" or
@@ -291,6 +294,9 @@ type AreaProps struct {
 
 // BarProps is the pendant of one Recharts Bar.
 type BarProps struct {
+	// Hide is Recharts' hide prop: omit geometry, tooltip, domain and stack
+	// contribution while retaining the legend entry.
+	Hide    bool
 	DataKey string
 	Fill    string
 	StackID string
@@ -320,6 +326,9 @@ type CellProps struct {
 
 // LineProps is the pendant of one Recharts Line.
 type LineProps struct {
+	// Hide is Recharts' hide prop: omit geometry, tooltip, domain and stack
+	// contribution while retaining the legend entry.
+	Hide        bool
 	DataKey     string
 	Type        CurveType
 	Stroke      string
@@ -1239,12 +1248,13 @@ func buildModel(ctx context.Context, st *chartState) Model {
 		for _, bs := range st.bars {
 			b := bs.props
 			s := modelSeries(config, b.DataKey, b.Fill, 0, st.data)
+			s.Hidden = b.Hide
 			s.Radius = radiusCorners(b.Radius)
 			s.StackID = b.StackID
 			s.StrokeWidth = b.StrokeWidth
 			s.ActiveIndex = b.ActiveIndex
 			s.ActiveBar = b.ActiveBar
-			if b.StackID != "" {
+			if b.StackID != "" && !b.Hide {
 				stacked = true
 			}
 			// Cells set the fill per data row, like the Cell children; a
@@ -1270,6 +1280,7 @@ func buildModel(ctx context.Context, st *chartState) Model {
 	} else if st.kind == "line" {
 		for _, l := range st.lines {
 			s := modelSeries(config, l.props.DataKey, "", 0, st.data)
+			s.Hidden = l.props.Hide
 			s.Curve = string(l.props.Type)
 			s.Stroke = l.props.Stroke
 			s.StrokeWidth = l.props.StrokeWidth
@@ -1305,10 +1316,11 @@ func buildModel(ctx context.Context, st *chartState) Model {
 	} else {
 		stacked := false
 		for _, a := range st.areas {
-			if a.StackID != "" {
+			if a.StackID != "" && !a.Hide {
 				stacked = true
 			}
 			s := modelSeries(config, a.DataKey, "", a.FillOpacity, st.data)
+			s.Hidden = a.Hide
 			s.Curve = string(a.Type)
 			s.Fill = a.Fill
 			s.Stroke = a.Stroke
@@ -1809,28 +1821,29 @@ type PieLabelModel struct {
 
 // ModelSeries is one data series with its resolved color variable.
 type ModelSeries struct {
-	Key         string          `json:"key"`
-	Label       string          `json:"label"`
-	Color       string          `json:"color"`
-	Values      []float64       `json:"values"`
-	Gaps           []bool           `json:"gaps,omitempty"` // rows without a value: the curve breaks there
-	FillOpacity float64         `json:"fillOpacity,omitempty"` // areas: 0 uses Recharts' 0.6
-	Curve       string          `json:"curve,omitempty"`       // "natural" (default), "linear", "step", "monotone"
-	FillOpacityPtr *float64     `json:"fillOpacityPtr,omitempty"` // radar: an explicit zero stays
-	Icon        string          `json:"icon,omitempty"`        // rendered svg, replaces the tooltip indicator
-	Fill        string          `json:"fill,omitempty"`        // verbatim fill, e.g. url(#fillDesktop)
-	Stroke      string          `json:"stroke,omitempty"`      // verbatim stroke for the area line
-	Radius      []float64        `json:"radius,omitempty"`      // bars: corner radii, one or four
-	StackID     string           `json:"stackId,omitempty"`
-	Cells       []string         `json:"cells,omitempty"`      // bars: fill per data row
-	ActiveIndex *int             `json:"activeIndex,omitempty"`
-	ActiveBar   *RectangleProps  `json:"activeBar,omitempty"`
-	LabelLists  []LabelListModel `json:"labelLists,omitempty"` // bars: one or more label lists
-	StrokeWidth float64         `json:"strokeWidth,omitempty"` // lines: stroke width
-	StrokeDasharray string          `json:"strokeDasharray,omitempty"` // lines: dashed curve
-	Dot         *DotModel       `json:"dot,omitempty"`         // lines: per point dots
-	ActiveDotR  float64         `json:"activeDotR,omitempty"`  // lines: hover dot radius
-	LabelList   *LabelListModel `json:"labelList,omitempty"`   // lines: value labels
+	Hidden          bool             `json:"hidden,omitempty"`
+	Key             string           `json:"key"`
+	Label           string           `json:"label"`
+	Color           string           `json:"color"`
+	Values          []float64        `json:"values"`
+	Gaps            []bool           `json:"gaps,omitempty"`           // rows without a value: the curve breaks there
+	FillOpacity     float64          `json:"fillOpacity,omitempty"`    // areas: 0 uses Recharts' 0.6
+	Curve           string           `json:"curve,omitempty"`          // "natural" (default), "linear", "step", "monotone"
+	FillOpacityPtr  *float64         `json:"fillOpacityPtr,omitempty"` // radar: an explicit zero stays
+	Icon            string           `json:"icon,omitempty"`           // rendered svg, replaces the tooltip indicator
+	Fill            string           `json:"fill,omitempty"`           // verbatim fill, e.g. url(#fillDesktop)
+	Stroke          string           `json:"stroke,omitempty"`         // verbatim stroke for the area line
+	Radius          []float64        `json:"radius,omitempty"`         // bars: corner radii, one or four
+	StackID         string           `json:"stackId,omitempty"`
+	Cells           []string         `json:"cells,omitempty"` // bars: fill per data row
+	ActiveIndex     *int             `json:"activeIndex,omitempty"`
+	ActiveBar       *RectangleProps  `json:"activeBar,omitempty"`
+	LabelLists      []LabelListModel `json:"labelLists,omitempty"`      // bars: one or more label lists
+	StrokeWidth     float64          `json:"strokeWidth,omitempty"`     // lines: stroke width
+	StrokeDasharray string           `json:"strokeDasharray,omitempty"` // lines: dashed curve
+	Dot             *DotModel        `json:"dot,omitempty"`             // lines: per point dots
+	ActiveDotR      float64          `json:"activeDotR,omitempty"`      // lines: hover dot radius
+	LabelList       *LabelListModel  `json:"labelList,omitempty"`       // lines: value labels
 	// radial bars: the track behind the bar, its corner radius and the
 	// class the source puts on the sectors
 	Background   bool     `json:"background,omitempty"`

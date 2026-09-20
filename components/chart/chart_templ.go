@@ -375,6 +375,9 @@ type LinearGradientProps struct {
 
 // AreaProps is the pendant of one Recharts Area.
 type AreaProps struct {
+	// Hide is Recharts' hide prop: omit geometry, tooltip, domain and stack
+	// contribution while retaining the legend entry.
+	Hide    bool
 	DataKey string
 	Type    CurveType
 	// Fill and Stroke are used verbatim, e.g. "url(#fillDesktop)" or
@@ -387,6 +390,9 @@ type AreaProps struct {
 
 // BarProps is the pendant of one Recharts Bar.
 type BarProps struct {
+	// Hide is Recharts' hide prop: omit geometry, tooltip, domain and stack
+	// contribution while retaining the legend entry.
+	Hide    bool
 	DataKey string
 	Fill    string
 	StackID string
@@ -416,6 +422,9 @@ type CellProps struct {
 
 // LineProps is the pendant of one Recharts Line.
 type LineProps struct {
+	// Hide is Recharts' hide prop: omit geometry, tooltip, domain and stack
+	// contribution while retaining the legend entry.
+	Hide        bool
 	DataKey     string
 	Type        CurveType
 	Stroke      string
@@ -1937,12 +1946,13 @@ func buildModel(ctx context.Context, st *chartState) Model {
 		for _, bs := range st.bars {
 			b := bs.props
 			s := modelSeries(config, b.DataKey, b.Fill, 0, st.data)
+			s.Hidden = b.Hide
 			s.Radius = radiusCorners(b.Radius)
 			s.StackID = b.StackID
 			s.StrokeWidth = b.StrokeWidth
 			s.ActiveIndex = b.ActiveIndex
 			s.ActiveBar = b.ActiveBar
-			if b.StackID != "" {
+			if b.StackID != "" && !b.Hide {
 				stacked = true
 			}
 			// Cells set the fill per data row, like the Cell children; a
@@ -1968,6 +1978,7 @@ func buildModel(ctx context.Context, st *chartState) Model {
 	} else if st.kind == "line" {
 		for _, l := range st.lines {
 			s := modelSeries(config, l.props.DataKey, "", 0, st.data)
+			s.Hidden = l.props.Hide
 			s.Curve = string(l.props.Type)
 			s.Stroke = l.props.Stroke
 			s.StrokeWidth = l.props.StrokeWidth
@@ -2003,10 +2014,11 @@ func buildModel(ctx context.Context, st *chartState) Model {
 	} else {
 		stacked := false
 		for _, a := range st.areas {
-			if a.StackID != "" {
+			if a.StackID != "" && !a.Hide {
 				stacked = true
 			}
 			s := modelSeries(config, a.DataKey, "", a.FillOpacity, st.data)
+			s.Hidden = a.Hide
 			s.Curve = string(a.Type)
 			s.Fill = a.Fill
 			s.Stroke = a.Stroke
@@ -2417,7 +2429,7 @@ func legendContent(items []LegendItem, p *LegendProps) templ.Component {
 				var templ_7745c5c3_Var34 string
 				templ_7745c5c3_Var34, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues("background-color:" + it.Color)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/chart/chart.templ`, Line: 1657, Col: 88}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/chart/chart.templ`, Line: 1669, Col: 88}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 				if templ_7745c5c3_Err != nil {
@@ -2431,7 +2443,7 @@ func legendContent(items []LegendItem, p *LegendProps) templ.Component {
 			var templ_7745c5c3_Var35 string
 			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(it.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/chart/chart.templ`, Line: 1659, Col: 15}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/chart/chart.templ`, Line: 1671, Col: 15}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 			if templ_7745c5c3_Err != nil {
@@ -2596,6 +2608,7 @@ type PieLabelModel struct {
 
 // ModelSeries is one data series with its resolved color variable.
 type ModelSeries struct {
+	Hidden          bool             `json:"hidden,omitempty"`
 	Key             string           `json:"key"`
 	Label           string           `json:"label"`
 	Color           string           `json:"color"`
