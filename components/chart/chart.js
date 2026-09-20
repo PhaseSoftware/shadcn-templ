@@ -6,7 +6,7 @@
  * the parts of the reference libraries the chart components need:
  * - recharts ResponsiveContainer: render at the container's real pixel
  *   size via ResizeObserver, so bars, radii and text keep their sizes.
- * - recharts-scale getNiceTickValues: the y domain and tick values.
+ * - recharts-scale getNiceTickValues: the radar domain and tick values.
  * - recharts CartesianAxis preserveEnd: tick culling with measured label
  *   sizes and minTickGap.
  * - d3-shape: curveNatural, curveLinear, curveStep and stackOffsetExpand.
@@ -28,6 +28,10 @@ const TOOLTIP_CLASS = "cn-chart-tooltip grid min-w-32 items-start";
 /* ---------------------------------------------------------------- */
 /* Geometry (ports of the Go engine)                                */
 /* ---------------------------------------------------------------- */
+
+function escapeHTML(value) {
+  return String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+}
 
 function fmtF(v) {
   return String(Math.round(v * 1000) / 1000);
@@ -111,10 +115,10 @@ function expandValues(series) {
   const vals = series.map(() => new Array(n).fill(0));
   for (let i = 0; i < n; i++) {
     let sum = 0;
-    for (const s of series) sum += s.values[i];
+    for (const s of series) if (!s.hidden) sum += s.values[i];
     if (sum > 0) {
       series.forEach((s, si) => {
-        vals[si][i] = s.values[i] / sum;
+        if (!s.hidden) vals[si][i] = s.values[i] / sum;
       });
     }
   }
@@ -148,19 +152,11 @@ function domainTicks(m, tickCount = 5) {
   return niceTickValues(min, max, tickCount);
 }
 
-/* domainOf is the top of the value domain, used to pin the scale during a
- * morph. */
-function domainOf(m) {
-  const t = domainTicks(m);
-  return t[t.length - 1];
-}
-
 /* valueScale maps a value onto its pixel position. With negative values
  * the domain spans [min, max] and the zero baseline sits inside the plot,
  * like Recharts' linear scale. */
-function valueScale(m, start, length, ticks) {
-  const max = ticks[ticks.length - 1];
-  const min = ticks[0];
+function valueScale(m, start, length) {
+  const [min, max] = m.domain;
   const span = max - min || 1;
   return {
     max,
@@ -304,6 +300,39 @@ function monotonePath(xs, ys) {
   return d;
 }
 
+/* isGap says whether a series has no value at a row. */
+function isGap(s, i) {
+  return !!(s.gaps && s.gaps[i]);
+}
+
+/* gappedPath draws one subpath per run of values, the pendant of
+ * connectNulls off: the curve breaks at every gap. */
+function gappedPath(curve, xs, ys, gaps) {
+  if (!gaps) return curvePath(curve, xs, ys);
+  let d = "";
+  let start = 0;
+  for (let i = 0; i <= xs.length; i++) {
+    if (i < xs.length && !gaps[i]) continue;
+    if (i === start + 1) d += `M${fmtF(xs[start])},${fmtF(ys[start])}Z`;
+    else if (i > start) d += curvePath(curve, xs.slice(start, i), ys.slice(start, i));
+    start = i + 1;
+  }
+  return d;
+}
+
+function gappedAreaPath(curve, xs, top, base, gaps) {
+  if (!gaps) return areaPathBetween(curve, xs, top, base);
+  let d = "";
+  let start = 0;
+  for (let i = 0; i <= xs.length; i++) {
+    if (i < xs.length && !gaps[i]) continue;
+    if (i === start + 1) d += `M${fmtF(xs[start])},${fmtF(top[start])}L${fmtF(xs[start])},${fmtF(base[start])}Z`;
+    else if (i > start) d += areaPathBetween(curve, xs.slice(start, i), top.slice(start, i), base.slice(start, i));
+    start = i + 1;
+  }
+  return d;
+}
+
 function curvePath(curve, xs, ys) {
   if (curve === "linear") return linearPath(xs, ys);
   if (curve === "step") return stepPath(xs, ys);
@@ -428,6 +457,36 @@ function syncAttrs(el, src) {
   }
 }
 
+// Recharts 2.15.4 Line.repeat and Line.getStrokeDasharray: retain the
+// user's pattern inside the animated sweep.
+function repeat(lines, count) {
+  const linesUnit = lines.length % 2 !== 0 ? [...lines, 0] : lines;
+  let result = [];
+  for (let i = 0; i < count; ++i) result = [...result, ...linesUnit];
+  return result;
+}
+
+function generateSimpleStrokeDasharray(totalLength, length) {
+  return `${length}px ${totalLength - length}px`;
+}
+
+function getStrokeDasharray(length, totalLength, lines) {
+  const lineLength = lines.reduce((pre, next) => pre + next);
+  if (!lineLength) return generateSimpleStrokeDasharray(totalLength, length);
+  const count = Math.floor(length / lineLength);
+  const remainLength = length % lineLength;
+  const restLength = totalLength - length;
+  let remainLines = [];
+  for (let i = 0, sum = 0; i < lines.length; sum += lines[i], ++i) {
+    if (sum + lines[i] > remainLength) {
+      remainLines = [...lines.slice(0, i), remainLength - sum];
+      break;
+    }
+  }
+  const emptyLines = remainLines.length % 2 === 0 ? [0, restLength] : [restLength];
+  return [...repeat(lines, count), ...remainLines, ...emptyLines].map(line => `${line}px`).join(", ");
+}
+
 /* CSS 'ease' (cubic-bezier(0.25, 0.1, 0.25, 1)), Recharts' default
  * animation easing. */
 function cssEase(t) {
@@ -535,12 +594,8 @@ function renderCartesian(panel, m, state, alpha = 1) {
 
   // During a morph the scale is pinned to the target domain like
   // Recharts, which interpolates pixel positions on the new scale.
-  const tickCount = m.tickCount || 5;
-  const ticks = m.domainMax
-    ? Array.from({ length: tickCount }, (_, i) => (m.domainMax * i) / (tickCount - 1))
-    : domainTicks(m, tickCount);
-  const domainMin = ticks[0];
-  const domainMax = ticks[ticks.length - 1];
+  const ticks = m.ticks;
+  const [domainMin, domainMax] = m.domain;
 
   // Category positions: band centers for bars, evenly spaced points for
   // lines and areas.
@@ -594,7 +649,7 @@ function renderCartesian(panel, m, state, alpha = 1) {
       if (m.yTickLine) {
         svg += `<line orientation="left" class="recharts-cartesian-axis-tick-line" stroke="#666" fill="none" x1="${fmtF(plotX - TICK_SIZE)}" y1="${fmtF(yCoords[tk.index])}" x2="${fmtF(plotX)}" y2="${fmtF(yCoords[tk.index])}"/>`;
       }
-      svg += `<text orientation="left" width="${fmtF(yAxisW)}" x="${fmtF(labelX)}" y="${fmtF(tk.coord)}" stroke="none" fill="#666" class="recharts-text recharts-cartesian-axis-tick-value" text-anchor="end"><tspan dy="0.355em">${fmtF(ticks[tk.index])}</tspan></text></g>`;
+      svg += `<text orientation="left" width="${fmtF(yAxisW)}" x="${fmtF(labelX)}" y="${fmtF(tk.coord)}" stroke="none" fill="#666" class="recharts-text recharts-cartesian-axis-tick-value" text-anchor="end"><tspan dy="0.355em">${escapeHTML(m.tickLabels[tk.index])}</tspan></text></g>`;
     }
     svg += "</g></g>";
   }
@@ -624,6 +679,10 @@ function renderCartesian(panel, m, state, alpha = 1) {
     svg += "</g>";
   }
 
+  if (m.allowDataOverflow) {
+    const id = `${state.uid}-overflow`;
+    svg += `<defs><clipPath id="${id}"><rect x="${fmtF(vertical ? plotX : plotX - plotW / 2)}" y="${fmtF(vertical ? plotY - plotH / 2 : plotY)}" width="${fmtF(vertical ? plotW : plotW * 2)}" height="${fmtF(vertical ? plotH * 2 : plotH)}"/></clipPath></defs><g clip-path="url(#${id})">`;
+  }
   let xs = [];
   let band = 0;
   // The update-animation sources, Recharts' prevPoints/prevData: full
@@ -637,19 +696,26 @@ function renderCartesian(panel, m, state, alpha = 1) {
     // vertical and the bars grow to the right.
     band = bandSize;
     // Stacked bars share one slot per category, like Recharts' stackId.
-    const slots = m.stacked ? 1 : m.series.length;
+    const slots = m.stacked ? 1 : m.series.filter(s => !s.hidden).length;
     const [offsets, barSize] = barPositions(band, m.categoryGap, slots);
-    const scale = valueScale(m, vertical ? plotX : plotY, vertical ? plotW : plotH, ticks);
+    const scale = valueScale(m, vertical ? plotX : plotY, vertical ? plotW : plotH);
     // In a vertical layout the value axis grows from left to right, so the
     // scale is mirrored around the plot.
     const valuePos = (v) => (vertical ? plotX + plotW - (scale.pos(v) - plotX) : scale.pos(v));
     const zero = vertical ? plotX + plotW - (scale.zero - plotX) : scale.zero;
 
+    let visibleIndex = 0;
     const stackBase = new Array(n).fill(0);
     state.tops = [];
     for (let si = 0; si < m.series.length; si++) {
       const s = m.series[si];
-      const slot = m.stacked ? 0 : si;
+      if (s.hidden) {
+        state.tops.push([]);
+        state.points.rects.push([]);
+        continue;
+      }
+      const slot = m.stacked ? 0 : visibleIndex++;
+
       const tops = [];
       const rects = [];
       // Recharts' Bar geometry keeps the rectangle signed: the origin is
@@ -774,13 +840,21 @@ function renderCartesian(panel, m, state, alpha = 1) {
       // the previous point picked by prevPointsDiffFactor.
       const sx = morphPoints(state.morph, si, cats.slice(), "xs");
       const top = morphPoints(state.morph, si, vals[si].map((v) => linearY(v - domainMin, domainMax - domainMin, plotY, plotH)), "tops");
-      const d = curvePath(s.curve, sx, top);
+      if (s.hidden) {
+        state.tops.push(top);
+        state.points.xs.push(sx);
+        continue;
+      }
+      const d = gappedPath(s.curve, sx, top, s.gaps);
       // The Recharts line entrance: strokeDasharray sweeps the measured
       // curve length from 0 to totalLength.
-      let dash = "";
+      let dash = s.strokeDasharray ? ` stroke-dasharray="${s.strokeDasharray}"` : "";
       if (alpha < 1) {
         const total = pathLength(d);
-        dash = ` stroke-dasharray="${fmtF(total * alpha)}px ${fmtF(total - total * alpha)}px"`;
+        const pattern = s.strokeDasharray
+          ? getStrokeDasharray(total * alpha, total, String(s.strokeDasharray).split(/[,\s]+/gim).map(num => parseFloat(num)))
+          : generateSimpleStrokeDasharray(total, total * alpha);
+        dash = ` stroke-dasharray="${pattern}"`;
       }
       svg +=
         `<g class="recharts-layer recharts-line">` +
@@ -791,6 +865,7 @@ function renderCartesian(panel, m, state, alpha = 1) {
       if (alpha >= 1 && !state.morph && s.dot) {
         svg += `<g class="recharts-layer recharts-line-dots">`;
         for (let i = 0; i < n; i++) {
+          if (isGap(s, i) || (s.dot.shown && !s.dot.shown[i])) continue;
           if (s.dot.icon) {
             const size = s.dot.size || 24;
             svg += `<g transform="translate(${fmtF(sx[i] - size / 2)},${fmtF(top[i] - size / 2)})">${s.dot.icon}</g>`;
@@ -811,6 +886,7 @@ function renderCartesian(panel, m, state, alpha = 1) {
         const ll = s.labelList;
         svg += `<g class="recharts-layer recharts-label-list">`;
         for (let i = 0; i < n; i++) {
+          if (isGap(s, i)) continue;
           const fill = ll.class ? "" : ` fill="${s.stroke || s.color}"`;
           svg += `<text x="${fmtF(sx[i])}" y="${fmtF(top[i] - (ll.offset || 5))}" class="recharts-text recharts-label ${ll.class || ""}" text-anchor="middle" font-size="${fmtF(ll.fontSize || 12)}"${fill}><tspan>${ll.labels[i]}</tspan></text>`;
         }
@@ -842,9 +918,14 @@ function renderCartesian(panel, m, state, alpha = 1) {
           : vals[si].map((v) => linearY(v - domainMin, domainMax - domainMin, plotY, plotH)),
         "tops"
       );
+      if (s.hidden) {
+        state.tops.push(top);
+        state.points.xs.push(sx);
+        continue;
+      }
       const fill = (s.fill || "").replace("url(#", `url(#${state.uid}-`) || s.color;
       const fillOpacity = s.fillOpacity || 0.6;
-      const areaD = m.stacked ? areaPathBetween(s.curve, sx, top, base) : areaPathBetween(s.curve, sx, top, baseline);
+      const areaD = m.stacked ? areaPathBetween(s.curve, sx, top, base) : gappedAreaPath(s.curve, sx, top, baseline, s.gaps);
       // HorizontalRect: the reveal spans the point range and reaches the
       // lowest painted y plus the stroke width.
       let clip = "";
@@ -860,7 +941,7 @@ function renderCartesian(panel, m, state, alpha = 1) {
         clip +
         `<g class="recharts-layer recharts-area"${clipOpen}>` +
         `<path class="recharts-curve recharts-area-area" fill="${fill}" fill-opacity="${fillOpacity}" stroke="none" d="${areaD}"/>` +
-        `<path class="recharts-curve recharts-area-curve" stroke="${s.stroke || s.color}" fill="none" stroke-width="1" d="${curvePath(s.curve, sx, top)}"/>` +
+        `<path class="recharts-curve recharts-area-curve" stroke="${s.stroke || s.color}" fill="none" stroke-width="1" d="${gappedPath(s.curve, sx, top, m.stacked ? null : s.gaps)}"/>` +
         `</g>`;
       state.tops.push(top);
       state.points.xs.push(sx);
@@ -868,21 +949,25 @@ function renderCartesian(panel, m, state, alpha = 1) {
     }
   }
 
+  if (m.allowDataOverflow) svg += "</g>";
+
   // The x axis only renders when the chart declared a visible one.
-  if (m.xAxisHeight && !vertical) {
-  const widths = m.labels.map((l) => measureLabel(l, panel));
+  if (m.xAxisHeight) {
+  const labels = vertical ? m.tickLabels : m.labels;
+  const coords = vertical ? ticks.map(v => plotX + (v - domainMin) / (domainMax - domainMin || 1) * plotW) : xs;
+  const widths = labels.map((l) => measureLabel(l, panel));
   const labelY = plotBottom + TICK_SIZE + (m.tickMargin || 0);
   svg += `<g class="recharts-layer recharts-cartesian-axis recharts-xAxis xAxis">`;
   if (m.xAxisLine) {
     svg += `<line orientation="bottom" class="recharts-cartesian-axis-line" stroke="#666" fill="none" x1="${fmtF(plotX)}" y1="${fmtF(plotBottom)}" x2="${fmtF(plotX + plotW)}" y2="${fmtF(plotBottom)}"/>`;
   }
   svg += `<g class="recharts-cartesian-axis-ticks">`;
-  for (const tk of preserveEndTicks(xs, widths, 0, W, m.minTickGap || 5)) {
+  for (const tk of preserveEndTicks(coords, widths, 0, W, m.minTickGap || 5)) {
     svg += `<g class="recharts-layer recharts-cartesian-axis-tick">`;
     if (m.xTickLine) {
-      svg += `<line orientation="bottom" class="recharts-cartesian-axis-tick-line" stroke="#666" fill="none" x1="${fmtF(xs[tk.index])}" y1="${fmtF(plotBottom + TICK_SIZE)}" x2="${fmtF(xs[tk.index])}" y2="${fmtF(plotBottom)}"/>`;
+      svg += `<line orientation="bottom" class="recharts-cartesian-axis-tick-line" stroke="#666" fill="none" x1="${fmtF(coords[tk.index])}" y1="${fmtF(plotBottom + TICK_SIZE)}" x2="${fmtF(coords[tk.index])}" y2="${fmtF(plotBottom)}"/>`;
     }
-    svg += `<text orientation="bottom" height="${fmtF(m.xAxisHeight)}" x="${fmtF(tk.coord)}" y="${fmtF(labelY)}" stroke="none" fill="#666" class="recharts-text recharts-cartesian-axis-tick-value" text-anchor="middle"><tspan dy="0.71em">${m.labels[tk.index]}</tspan></text></g>`;
+    svg += `<text orientation="bottom" height="${fmtF(m.xAxisHeight)}" x="${fmtF(tk.coord)}" y="${fmtF(labelY)}" stroke="none" fill="#666" class="recharts-text recharts-cartesian-axis-tick-value" text-anchor="middle"><tspan dy="0.71em">${escapeHTML(labels[tk.index])}</tspan></text></g>`;
   }
   svg += "</g></g>";
   }
@@ -1620,11 +1705,13 @@ function tooltipHTML(m, i, pieIndex = 0) {
   // the config label of its own data key, like getPayloadConfigFromPayload
   // reading item.dataKey.
   const pie = m.kind === "pie" ? m.pies[pieIndex] : null;
+  const payloadCount = pie ? 1 : m.series.filter(s => !isGap(s, i) && !s.hidden).length;
+  if (!payloadCount) return "";
   const label = pie ? pie.seriesLabel || t.label : t.label || (m.tooltipLabels && m.tooltipLabels[i]) || m.labels[i];
   // Like ChartTooltipContent: a single non-dot payload nests the label
   // inside the row, so the line indicator spans the full row height. A pie
   // always carries a single payload item.
-  const nestLabel = (pie ? true : m.series.length === 1) && t.indicator && t.indicator !== "dot";
+  const nestLabel = (payloadCount === 1) && t.indicator && t.indicator !== "dot";
   const labelCls = `font-medium${t.labelClass ? " " + t.labelClass : ""}`;
   let html = `<div class="${TOOLTIP_CLASS}${t.width ? " " + t.width : ""}">`;
   if (!t.hideLabel && !nestLabel) {
@@ -1647,6 +1734,7 @@ function tooltipHTML(m, i, pieIndex = 0) {
     return html;
   }
   m.series.forEach((s, si) => {
+    if (isGap(s, i) || s.hidden) return;
     const rowCls =
       "flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-muted-foreground" +
       (t.indicator !== "line" && t.indicator !== "dashed" ? " items-center" : "");
@@ -1752,6 +1840,7 @@ function showActiveDots(panel, m, state, i) {
     // renderActivePoint's defaults: r 4, white stroke of 2, filled with the
     // item's main color. getLegendItemColor prefers the stroke over the fill.
     const series = m.series[s];
+    if (isGap(series, i) || series.hidden) continue;
     const r = series.activeDotR || 4;
     const mainColor = series.stroke && series.stroke !== "none" ? series.stroke : series.fill || series.color || "none";
     // A radar point carries its own x, the cartesian charts share the
@@ -1964,7 +2053,7 @@ function initPanel(script) {
   function positionTooltip(e, snapX, snapY, i, pieIndex = 0) {
     const wasHidden = wrapper.style.visibility !== "visible";
     wrapper.innerHTML = tooltipHTML(m, i, pieIndex);
-    wrapper.style.visibility = "visible";
+    wrapper.style.visibility = wrapper.innerHTML ? "visible" : "hidden";
     const crect = container.getBoundingClientRect();
     const tw = wrapper.offsetWidth;
     const th = wrapper.offsetHeight;

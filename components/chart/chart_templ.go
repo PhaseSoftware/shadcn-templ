@@ -245,7 +245,12 @@ type Margin struct {
 
 type CurveType string
 
-const CurveNatural CurveType = "natural"
+const (
+	CurveNatural  CurveType = "natural"
+	CurveMonotone CurveType = "monotone"
+	CurveLinear   CurveType = "linear"
+	CurveStep     CurveType = "step"
+)
 
 // CartesianGridProps is the pendant of Recharts' CartesianGrid. Both
 // directions default to Recharts' true, so they are pointers: pass
@@ -291,7 +296,17 @@ type XAxisProps struct {
 	AxisLine      bool
 	TickMargin    float64
 	MinTickGap    float64 // defaults to Recharts' 5
+	TickCount     int     // defaults to Recharts 5
 	TickFormatter func(any) string
+	// Ticks is Recharts' ticks prop: drawn values, independent of Domain.
+	Ticks []float64
+	// Domain is Recharts' domain: two numbers or strings ("auto",
+	// "dataMin", "dataMax", "dataMin - 10", "dataMax + 10"). Nil uses
+	// [0, "auto"]. Other lengths panic with the prop name.
+	Domain []any
+	// AllowDataOverflow keeps numeric domain bounds instead of extending
+	// them to contain the data, like Recharts' allowDataOverflow.
+	AllowDataOverflow bool
 }
 
 // YAxisProps is the pendant of Recharts' YAxis.
@@ -307,6 +322,16 @@ type YAxisProps struct {
 	TickCount     int     // defaults to Recharts 5
 	Width         float64 // defaults to Recharts 60
 	TickFormatter func(any) string
+
+	// Ticks is Recharts' ticks prop: drawn values, independent of Domain.
+	Ticks []float64
+	// Domain is Recharts' domain: two numbers or strings ("auto",
+	// "dataMin", "dataMax", "dataMin - 10", "dataMax + 10"). Nil uses
+	// [0, "auto"]. Other lengths panic with the prop name.
+	Domain []any
+	// AllowDataOverflow keeps numeric domain bounds instead of extending
+	// them to contain the data, like Recharts' allowDataOverflow.
+	AllowDataOverflow bool
 }
 
 // TooltipProps is the pendant of ChartTooltip: the cursor flag and the
@@ -352,6 +377,9 @@ type LinearGradientProps struct {
 
 // AreaProps is the pendant of one Recharts Area.
 type AreaProps struct {
+	// Hide is Recharts' hide prop: omit geometry, tooltip, domain and stack
+	// contribution while retaining the legend entry.
+	Hide    bool
 	DataKey string
 	Type    CurveType
 	// Fill and Stroke are used verbatim, e.g. "url(#fillDesktop)" or
@@ -364,6 +392,9 @@ type AreaProps struct {
 
 // BarProps is the pendant of one Recharts Bar.
 type BarProps struct {
+	// Hide is Recharts' hide prop: omit geometry, tooltip, domain and stack
+	// contribution while retaining the legend entry.
+	Hide    bool
 	DataKey string
 	Fill    string
 	StackID string
@@ -393,10 +424,15 @@ type CellProps struct {
 
 // LineProps is the pendant of one Recharts Line.
 type LineProps struct {
+	// Hide is Recharts' hide prop: omit geometry, tooltip, domain and stack
+	// contribution while retaining the legend entry.
+	Hide        bool
 	DataKey     string
 	Type        CurveType
 	Stroke      string
 	StrokeWidth float64
+	// StrokeDasharray dashes the curve, like Recharts' strokeDasharray.
+	StrokeDasharray string
 	// Dot draws the per point dots; nil is the demos' dot={false}.
 	Dot *DotProps
 	// ActiveDot sizes the hover dot, like Recharts' activeDot prop.
@@ -413,6 +449,9 @@ type DotProps struct {
 	DataFill    bool
 	Icon        templ.Component
 	Size        float64 // icon box, like the custom dot's width/height
+	// Show mirrors a dot render prop returning an element or null for a
+	// data row. Nil draws every row.
+	Show func(index int, row Datum) bool
 }
 
 // ActiveDotProps is the pendant of Recharts' activeDot object.
@@ -1783,20 +1822,6 @@ func hasFillColumn(data []Datum) bool {
 	return false
 }
 
-// seriesMin is the lowest value across all series, so a negative domain
-// keeps its zero baseline.
-func seriesMin(series []ModelSeries) float64 {
-	min := 0.0
-	for _, s := range series {
-		for _, v := range s.Values {
-			if v < min {
-				min = v
-			}
-		}
-	}
-	return min
-}
-
 // labelListModel precomputes the labels of a LabelList, defaulting to the
 // series data key like Recharts does.
 func labelListModel(ll LabelListProps, seriesKey string, data []Datum) LabelListModel {
@@ -1848,7 +1873,6 @@ func buildModel(ctx context.Context, st *chartState) Model {
 			m.YAxisWidth = 60
 		}
 		m.YAxisMargin = y.TickMargin
-		m.TickCount = y.TickCount
 		m.YTickLine = y.TickLine
 		m.YAxisLine = y.AxisLine
 		m.YAxisHide = y.Hide
@@ -1923,12 +1947,13 @@ func buildModel(ctx context.Context, st *chartState) Model {
 		for _, bs := range st.bars {
 			b := bs.props
 			s := modelSeries(config, b.DataKey, b.Fill, 0, st.data)
+			s.Hidden = b.Hide
 			s.Radius = radiusCorners(b.Radius)
 			s.StackID = b.StackID
 			s.StrokeWidth = b.StrokeWidth
 			s.ActiveIndex = b.ActiveIndex
 			s.ActiveBar = b.ActiveBar
-			if b.StackID != "" {
+			if b.StackID != "" && !b.Hide {
 				stacked = true
 			}
 			// Cells set the fill per data row, like the Cell children; a
@@ -1951,18 +1976,25 @@ func buildModel(ctx context.Context, st *chartState) Model {
 			m.Series = append(m.Series, s)
 		}
 		m.Stacked = stacked
-		m.DomainMin = seriesMin(m.Series)
 	} else if st.kind == "line" {
 		for _, l := range st.lines {
 			s := modelSeries(config, l.props.DataKey, "", 0, st.data)
+			s.Hidden = l.props.Hide
 			s.Curve = string(l.props.Type)
 			s.Stroke = l.props.Stroke
 			s.StrokeWidth = l.props.StrokeWidth
+			s.StrokeDasharray = l.props.StrokeDasharray
 			if l.props.ActiveDot != nil {
 				s.ActiveDotR = l.props.ActiveDot.R
 			}
 			if d := l.props.Dot; d != nil {
 				dm := &DotModel{R: d.R, Fill: d.Fill, Size: d.Size}
+				if d.Show != nil {
+					dm.Shown = make([]bool, len(st.data))
+					for i, row := range st.data {
+						dm.Shown[i] = d.Show(i, row)
+					}
+				}
 				if d.DataFill {
 					dm.Fills = make([]string, len(st.data))
 					for i, row := range st.data {
@@ -1983,10 +2015,11 @@ func buildModel(ctx context.Context, st *chartState) Model {
 	} else {
 		stacked := false
 		for _, a := range st.areas {
-			if a.StackID != "" {
+			if a.StackID != "" && !a.Hide {
 				stacked = true
 			}
 			s := modelSeries(config, a.DataKey, "", a.FillOpacity, st.data)
+			s.Hidden = a.Hide
 			s.Curve = string(a.Type)
 			s.Fill = a.Fill
 			s.Stroke = a.Stroke
@@ -2014,6 +2047,7 @@ func buildModel(ctx context.Context, st *chartState) Model {
 			}
 		}
 	}
+	setValueScale(&m, st)
 	applyIcons(ctx, &m, config)
 	return m
 }
@@ -2240,10 +2274,19 @@ func modelSeries(config Config, key, fill string, fillOpacity float64, data []Da
 		color = seriesColor(key)
 	}
 	values := make([]float64, len(data))
+	// A row without the key is a gap, like a missing value in Recharts
+	// with connectNulls off: the curve breaks and no dot is drawn.
+	var gaps []bool
 	for i, d := range data {
 		values[i] = num(d[key])
+		if d[key] == nil {
+			if gaps == nil {
+				gaps = make([]bool, len(data))
+			}
+			gaps[i] = true
+		}
 	}
-	return ModelSeries{Key: key, Label: config.Label(key), Color: color, Values: values, FillOpacity: fillOpacity}
+	return ModelSeries{Key: key, Label: config.Label(key), Color: color, Values: values, Gaps: gaps, FillOpacity: fillOpacity}
 }
 
 // LegendItem is one rendered legend entry.
@@ -2387,7 +2430,7 @@ func legendContent(items []LegendItem, p *LegendProps) templ.Component {
 				var templ_7745c5c3_Var34 string
 				templ_7745c5c3_Var34, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues("background-color:" + it.Color)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/chart/chart.templ`, Line: 1625, Col: 88}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/chart/chart.templ`, Line: 1668, Col: 88}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 				if templ_7745c5c3_Err != nil {
@@ -2401,7 +2444,7 @@ func legendContent(items []LegendItem, p *LegendProps) templ.Component {
 			var templ_7745c5c3_Var35 string
 			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(it.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/chart/chart.templ`, Line: 1627, Col: 15}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/chart/chart.templ`, Line: 1670, Col: 15}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 			if templ_7745c5c3_Err != nil {
@@ -2432,33 +2475,36 @@ func legendPad(verticalAlign string) string {
 // re-renders the SVG at real container pixels (Recharts'
 // ResponsiveContainer behavior) and drives tooltip and cursor from it.
 type Model struct {
-	Kind           string  `json:"kind"` // "bar" | "area" | "pie"
-	MarginTop      float64 `json:"marginTop"`
-	MarginRight    float64 `json:"marginRight"`
-	MarginBottom   float64 `json:"marginBottom"`
-	MarginLeft     float64 `json:"marginLeft"`
-	XAxisHeight    float64 `json:"xAxisHeight,omitempty"`
-	TickMargin     float64 `json:"tickMargin,omitempty"`
-	MinTickGap     float64 `json:"minTickGap,omitempty"`
-	YAxisWidth     float64 `json:"yAxisWidth,omitempty"`
-	YAxisMargin    float64 `json:"yAxisMargin,omitempty"` // tickMargin of the y axis
-	TickCount      int     `json:"tickCount,omitempty"`   // y ticks, Recharts default 5
-	XTickLine      bool    `json:"xTickLine,omitempty"`
-	XAxisLine      bool    `json:"xAxisLine,omitempty"`
-	YTickLine      bool    `json:"yTickLine,omitempty"`
-	YAxisLine      bool    `json:"yAxisLine,omitempty"`
-	LegendHeight   float64 `json:"legendHeight,omitempty"`
-	LegendVAlign   string  `json:"legendVAlign,omitempty"` // "top" raises the legend above the plot
-	CategoryGap    float64 `json:"categoryGap,omitempty"`
-	Radius         float64 `json:"radius,omitempty"`
-	Grid           bool    `json:"grid,omitempty"`
-	GridHorizontal bool    `json:"gridHorizontal,omitempty"`
-	GridVertical   bool    `json:"gridVertical,omitempty"`
+	Kind              string     `json:"kind"` // "bar" | "area" | "pie"
+	MarginTop         float64    `json:"marginTop"`
+	MarginRight       float64    `json:"marginRight"`
+	MarginBottom      float64    `json:"marginBottom"`
+	MarginLeft        float64    `json:"marginLeft"`
+	XAxisHeight       float64    `json:"xAxisHeight,omitempty"`
+	TickMargin        float64    `json:"tickMargin,omitempty"`
+	MinTickGap        float64    `json:"minTickGap,omitempty"`
+	YAxisWidth        float64    `json:"yAxisWidth,omitempty"`
+	YAxisMargin       float64    `json:"yAxisMargin,omitempty"` // tickMargin of the y axis
+	TickCount         int        `json:"tickCount,omitempty"`   // numeric axis ticks, Recharts default 5
+	AllowDataOverflow bool       `json:"allowDataOverflow,omitempty"`
+	Domain            [2]float64 `json:"domain"`
+	Ticks             []float64  `json:"ticks,omitempty"`
+	TickLabels        []string   `json:"tickLabels,omitempty"`
+	XTickLine         bool       `json:"xTickLine,omitempty"`
+	XAxisLine         bool       `json:"xAxisLine,omitempty"`
+	YTickLine         bool       `json:"yTickLine,omitempty"`
+	YAxisLine         bool       `json:"yAxisLine,omitempty"`
+	LegendHeight      float64    `json:"legendHeight,omitempty"`
+	LegendVAlign      string     `json:"legendVAlign,omitempty"` // "top" raises the legend above the plot
+	CategoryGap       float64    `json:"categoryGap,omitempty"`
+	Radius            float64    `json:"radius,omitempty"`
+	Grid              bool       `json:"grid,omitempty"`
+	GridHorizontal    bool       `json:"gridHorizontal,omitempty"`
+	GridVertical      bool       `json:"gridVertical,omitempty"`
 	// Layout "vertical" swaps the axes and draws the bars horizontally.
 	Layout      string                `json:"layout,omitempty"`
 	XAxisHide   bool                  `json:"xAxisHide,omitempty"`
 	YAxisHide   bool                  `json:"yAxisHide,omitempty"`
-	DomainMin   float64               `json:"domainMin,omitempty"` // negative values extend the domain
 	Stacked     bool                  `json:"stacked,omitempty"`
 	StackOffset string                `json:"stackOffset,omitempty"` // "expand" normalizes each stack to 1
 	Defs        []LinearGradientProps `json:"defs,omitempty"`
@@ -2563,26 +2609,29 @@ type PieLabelModel struct {
 
 // ModelSeries is one data series with its resolved color variable.
 type ModelSeries struct {
-	Key            string           `json:"key"`
-	Label          string           `json:"label"`
-	Color          string           `json:"color"`
-	Values         []float64        `json:"values"`
-	FillOpacity    float64          `json:"fillOpacity,omitempty"`    // areas: 0 uses Recharts' 0.6
-	Curve          string           `json:"curve,omitempty"`          // "natural" (default), "linear", "step", "monotone"
-	FillOpacityPtr *float64         `json:"fillOpacityPtr,omitempty"` // radar: an explicit zero stays
-	Icon           string           `json:"icon,omitempty"`           // rendered svg, replaces the tooltip indicator
-	Fill           string           `json:"fill,omitempty"`           // verbatim fill, e.g. url(#fillDesktop)
-	Stroke         string           `json:"stroke,omitempty"`         // verbatim stroke for the area line
-	Radius         []float64        `json:"radius,omitempty"`         // bars: corner radii, one or four
-	StackID        string           `json:"stackId,omitempty"`
-	Cells          []string         `json:"cells,omitempty"` // bars: fill per data row
-	ActiveIndex    *int             `json:"activeIndex,omitempty"`
-	ActiveBar      *RectangleProps  `json:"activeBar,omitempty"`
-	LabelLists     []LabelListModel `json:"labelLists,omitempty"`  // bars: one or more label lists
-	StrokeWidth    float64          `json:"strokeWidth,omitempty"` // lines: stroke width
-	Dot            *DotModel        `json:"dot,omitempty"`         // lines: per point dots
-	ActiveDotR     float64          `json:"activeDotR,omitempty"`  // lines: hover dot radius
-	LabelList      *LabelListModel  `json:"labelList,omitempty"`   // lines: value labels
+	Hidden          bool             `json:"hidden,omitempty"`
+	Key             string           `json:"key"`
+	Label           string           `json:"label"`
+	Color           string           `json:"color"`
+	Values          []float64        `json:"values"`
+	Gaps            []bool           `json:"gaps,omitempty"`           // rows without a value: the curve breaks there
+	FillOpacity     float64          `json:"fillOpacity,omitempty"`    // areas: 0 uses Recharts' 0.6
+	Curve           string           `json:"curve,omitempty"`          // "natural" (default), "linear", "step", "monotone"
+	FillOpacityPtr  *float64         `json:"fillOpacityPtr,omitempty"` // radar: an explicit zero stays
+	Icon            string           `json:"icon,omitempty"`           // rendered svg, replaces the tooltip indicator
+	Fill            string           `json:"fill,omitempty"`           // verbatim fill, e.g. url(#fillDesktop)
+	Stroke          string           `json:"stroke,omitempty"`         // verbatim stroke for the area line
+	Radius          []float64        `json:"radius,omitempty"`         // bars: corner radii, one or four
+	StackID         string           `json:"stackId,omitempty"`
+	Cells           []string         `json:"cells,omitempty"` // bars: fill per data row
+	ActiveIndex     *int             `json:"activeIndex,omitempty"`
+	ActiveBar       *RectangleProps  `json:"activeBar,omitempty"`
+	LabelLists      []LabelListModel `json:"labelLists,omitempty"`      // bars: one or more label lists
+	StrokeWidth     float64          `json:"strokeWidth,omitempty"`     // lines: stroke width
+	StrokeDasharray string           `json:"strokeDasharray,omitempty"` // lines: dashed curve
+	Dot             *DotModel        `json:"dot,omitempty"`             // lines: per point dots
+	ActiveDotR      float64          `json:"activeDotR,omitempty"`      // lines: hover dot radius
+	LabelList       *LabelListModel  `json:"labelList,omitempty"`       // lines: value labels
 	// radial bars: the track behind the bar, its corner radius and the
 	// class the source puts on the sectors
 	Background   bool     `json:"background,omitempty"`
@@ -2599,6 +2648,7 @@ type DotModel struct {
 	Fills       []string `json:"fills,omitempty"` // per point fills from the data rows
 	Icon        string   `json:"icon,omitempty"`  // rendered svg replacing the dot
 	Size        float64  `json:"size,omitempty"`  // icon box size
+	Shown       []bool   `json:"shown,omitempty"` // per-row result of the dot render predicate
 }
 
 // LabelListModel carries the precomputed labels of a LabelList.
