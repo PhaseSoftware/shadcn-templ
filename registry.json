@@ -232,6 +232,10 @@
           "type": "registry:ui"
         },
         {
+          "path": "components/chart/scale.go",
+          "type": "registry:ui"
+        },
+        {
           "path": "components/chart/chart.js",
           "type": "registry:ui"
         }

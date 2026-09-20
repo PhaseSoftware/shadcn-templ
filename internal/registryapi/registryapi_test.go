@@ -604,3 +604,17 @@ func TestBuildStyleIndex(t *testing.T) {
 		t.Error("unknown style index returned an item")
 	}
 }
+
+// A chart installed from the registry needs the Go scale as well as its
+// templ source; otherwise buildModel refers to a missing setValueScale.
+func TestChartRegistryIncludesScale(t *testing.T) {
+	t.Setenv("GO_ENV", "production")
+	item, err := BuildStyleItem("base-nova", "chart", inliner.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := itemFileContent(t, item, "components/chart/scale.go")
+	if !strings.Contains(source, "func setValueScale(") {
+		t.Fatal("chart registry is missing its value-scale implementation")
+	}
+}

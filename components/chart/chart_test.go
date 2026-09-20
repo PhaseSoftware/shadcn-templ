@@ -188,3 +188,10 @@ func TestHiddenSeries(t *testing.T) {
 		})
 	}
 }
+
+func TestNumericXAxisFormatter(t *testing.T) {
+	m := renderModel(t, nil, BarChart(BarChartProps{Layout: "vertical", Data: []Datum{{"v": 10}, {"v": 20}}}), templ.Join(XAxis(XAxisProps{Ticks: []float64{0, 10, 20}, TickFormatter: func(v any) string { return fmt.Sprintf("<%v>", v) }}), Bar(BarProps{DataKey: "v"})))
+	if got := fmt.Sprint(m["tickLabels"]); got != "[<0> <10> <20>]" {
+		t.Fatalf("numeric X labels: %s", got)
+	}
+}

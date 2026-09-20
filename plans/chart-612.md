@@ -108,7 +108,7 @@ Checks: `go test ./components/chart/`, `probe.mjs` in webkit and chromium, `grep
 
 ### 8. Curve constants
 
-- [ ] Done
+- [x] Done
 
 `chart.templ`: `CurveLinear`, `CurveMonotone`, `CurveStep` in one const block with `CurveNatural`.
 
@@ -169,5 +169,14 @@ Checks: `go build ./...`, `go vet ./components/chart/`.
 - Removed the hidden-key attribute protocol, per-container MutationObserver and line data-key attributes. Tooltip rows and active dots use the model flag.
 - Go tests cover line domains and stacked bar/area domains with a much larger hidden series. Both engines show two lines, three legend entries, a visible-series axis maximum of 40 and six bar segments (two per row). Normalized stacked-area fixture also has only two curves and keeps 0..1.
 - All fixture assertions and all six docs / 68 gallery baseline comparisons pass in both engines. `go test ./components/chart/`, JS syntax, empty legacy-attribute search and `git diff --check` passed.
+
+### Task 8 and review handoff
+
+- Added CurveStep alongside the existing Natural/Monotone/Linear constants; demos retain their literals. Finished alignment of the changed model/axis structs.
+- Necessary plan addition discovered during delivery review: registered `components/chart/scale.go` in `registry.json`. Registry files are enumerated explicitly; omitting the new file would break freshly installed charts. Added a production-registry regression test that checks the delivered scale implementation.
+- Added a final numeric-X formatter check in Go and both browsers. Labels containing angle brackets render as literal text, with the existing line-dots demo unchanged.
+- `go build ./...`, `go vet ./components/chart/`, `go test ./components/chart/ ./internal/registryapi/`, JS syntax and `git diff --check` all passed. Final full browser coverage from task 7: all six documentation charts and 68 registry demos have identical tick labels/paths in Chromium and WebKit. Every new fixture assertion passes; the task-5 entrance screenshot was visually checked.
+- All eight tasks are ready for Planner review. Browser fixtures, captures, assertion scripts and the motion screenshot remain under gitignored `tmp/chart-612/` as planned. The source changes and this log are committed one task per commit on top of the author's original head, without rewriting it. Push target verified: `miguelcsilva/shadcn-templ`, `chart-line-gaps-ticks-dashes`, maintainerCanModify=true.
+- No templ generator or JS minifier was run manually. The plan header/status and Planner review section remain Planner-owned. Merge and author reply remain with the user.
 
 ## Planner review

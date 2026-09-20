@@ -151,6 +151,7 @@ const (
 	CurveNatural  CurveType = "natural"
 	CurveMonotone CurveType = "monotone"
 	CurveLinear   CurveType = "linear"
+	CurveStep     CurveType = "step"
 )
 
 // CartesianGridProps is the pendant of Recharts' CartesianGrid. Both
@@ -207,7 +208,6 @@ type XAxisProps struct {
 	// AllowDataOverflow keeps numeric domain bounds instead of extending
 	// them to contain the data, like Recharts' allowDataOverflow.
 	AllowDataOverflow bool
-
 }
 
 // YAxisProps is the pendant of Recharts' YAxis.
@@ -233,7 +233,6 @@ type YAxisProps struct {
 	// AllowDataOverflow keeps numeric domain bounds instead of extending
 	// them to contain the data, like Recharts' allowDataOverflow.
 	AllowDataOverflow bool
-
 }
 
 // TooltipProps is the pendant of ChartTooltip: the cursor flag and the
@@ -1687,48 +1686,48 @@ func legendPad(verticalAlign string) string {
 // re-renders the SVG at real container pixels (Recharts'
 // ResponsiveContainer behavior) and drives tooltip and cursor from it.
 type Model struct {
-	Kind          string                `json:"kind"` // "bar" | "area" | "pie"
-	MarginTop     float64               `json:"marginTop"`
-	MarginRight   float64               `json:"marginRight"`
-	MarginBottom  float64               `json:"marginBottom"`
-	MarginLeft    float64               `json:"marginLeft"`
-	XAxisHeight   float64               `json:"xAxisHeight,omitempty"`
-	TickMargin    float64               `json:"tickMargin,omitempty"`
-	MinTickGap    float64               `json:"minTickGap,omitempty"`
-	YAxisWidth    float64               `json:"yAxisWidth,omitempty"`
-	YAxisMargin   float64               `json:"yAxisMargin,omitempty"` // tickMargin of the y axis
-	TickCount     int                   `json:"tickCount,omitempty"`   // y ticks, Recharts default 5
-	AllowDataOverflow bool              `json:"allowDataOverflow,omitempty"`
-	Domain        [2]float64            `json:"domain"`
-	Ticks         []float64             `json:"ticks,omitempty"`
-	TickLabels    []string              `json:"tickLabels,omitempty"`
-	XTickLine     bool                  `json:"xTickLine,omitempty"`
-	XAxisLine     bool                  `json:"xAxisLine,omitempty"`
-	YTickLine     bool                  `json:"yTickLine,omitempty"`
-	YAxisLine     bool                  `json:"yAxisLine,omitempty"`
-	LegendHeight  float64               `json:"legendHeight,omitempty"`
-	LegendVAlign  string                `json:"legendVAlign,omitempty"` // "top" raises the legend above the plot
-	CategoryGap   float64               `json:"categoryGap,omitempty"`
-	Radius        float64               `json:"radius,omitempty"`
-	Grid           bool `json:"grid,omitempty"`
-	GridHorizontal bool `json:"gridHorizontal,omitempty"`
-	GridVertical   bool `json:"gridVertical,omitempty"`
+	Kind              string     `json:"kind"` // "bar" | "area" | "pie"
+	MarginTop         float64    `json:"marginTop"`
+	MarginRight       float64    `json:"marginRight"`
+	MarginBottom      float64    `json:"marginBottom"`
+	MarginLeft        float64    `json:"marginLeft"`
+	XAxisHeight       float64    `json:"xAxisHeight,omitempty"`
+	TickMargin        float64    `json:"tickMargin,omitempty"`
+	MinTickGap        float64    `json:"minTickGap,omitempty"`
+	YAxisWidth        float64    `json:"yAxisWidth,omitempty"`
+	YAxisMargin       float64    `json:"yAxisMargin,omitempty"` // tickMargin of the y axis
+	TickCount         int        `json:"tickCount,omitempty"`   // y ticks, Recharts default 5
+	AllowDataOverflow bool       `json:"allowDataOverflow,omitempty"`
+	Domain            [2]float64 `json:"domain"`
+	Ticks             []float64  `json:"ticks,omitempty"`
+	TickLabels        []string   `json:"tickLabels,omitempty"`
+	XTickLine         bool       `json:"xTickLine,omitempty"`
+	XAxisLine         bool       `json:"xAxisLine,omitempty"`
+	YTickLine         bool       `json:"yTickLine,omitempty"`
+	YAxisLine         bool       `json:"yAxisLine,omitempty"`
+	LegendHeight      float64    `json:"legendHeight,omitempty"`
+	LegendVAlign      string     `json:"legendVAlign,omitempty"` // "top" raises the legend above the plot
+	CategoryGap       float64    `json:"categoryGap,omitempty"`
+	Radius            float64    `json:"radius,omitempty"`
+	Grid              bool       `json:"grid,omitempty"`
+	GridHorizontal    bool       `json:"gridHorizontal,omitempty"`
+	GridVertical      bool       `json:"gridVertical,omitempty"`
 	// Layout "vertical" swaps the axes and draws the bars horizontally.
-	Layout      string  `json:"layout,omitempty"`
-	XAxisHide   bool    `json:"xAxisHide,omitempty"`
-	YAxisHide   bool    `json:"yAxisHide,omitempty"`
-	Stacked       bool                  `json:"stacked,omitempty"`
-	StackOffset   string                `json:"stackOffset,omitempty"` // "expand" normalizes each stack to 1
-	Defs          []LinearGradientProps `json:"defs,omitempty"`
-	Cursor        bool                  `json:"cursor"`
+	Layout      string                `json:"layout,omitempty"`
+	XAxisHide   bool                  `json:"xAxisHide,omitempty"`
+	YAxisHide   bool                  `json:"yAxisHide,omitempty"`
+	Stacked     bool                  `json:"stacked,omitempty"`
+	StackOffset string                `json:"stackOffset,omitempty"` // "expand" normalizes each stack to 1
+	Defs        []LinearGradientProps `json:"defs,omitempty"`
+	Cursor      bool                  `json:"cursor"`
 	// HasTooltip marks a declared Tooltip child: without one Recharts
 	// renders no tooltip at all, so the runtime skips the hover wiring.
-	HasTooltip bool `json:"hasTooltip,omitempty"`
-	Labels        []string              `json:"labels"`
-	TooltipLabels []string              `json:"tooltipLabels,omitempty"`
-	SliceColors   []string              `json:"sliceColors,omitempty"` // pie: color per slice
-	Series        []ModelSeries         `json:"series"`
-	Tooltip       TooltipModel          `json:"tooltip"`
+	HasTooltip    bool          `json:"hasTooltip,omitempty"`
+	Labels        []string      `json:"labels"`
+	TooltipLabels []string      `json:"tooltipLabels,omitempty"`
+	SliceColors   []string      `json:"sliceColors,omitempty"` // pie: color per slice
+	Series        []ModelSeries `json:"series"`
+	Tooltip       TooltipModel  `json:"tooltip"`
 	// Pies carries the pie geometry for the client renderer.
 	Pies []PieModel `json:"pies,omitempty"`
 	// Polar carries the radar geometry.
