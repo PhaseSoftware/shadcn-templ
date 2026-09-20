@@ -198,6 +198,16 @@ type XAxisProps struct {
 	TickMargin    float64
 	MinTickGap    float64 // defaults to Recharts' 5
 	TickFormatter func(any) string
+	// Ticks is Recharts' ticks prop: drawn values, independent of Domain.
+	Ticks []float64
+	// Domain is Recharts' domain: two numbers or strings ("auto",
+	// "dataMin", "dataMax", "dataMin - 10", "dataMax + 10"). Nil uses
+	// [0, "auto"]. Other lengths panic with the prop name.
+	Domain []any
+	// AllowDataOverflow keeps numeric domain bounds instead of extending
+	// them to contain the data, like Recharts' allowDataOverflow.
+	AllowDataOverflow bool
+
 }
 
 // YAxisProps is the pendant of Recharts' YAxis.
@@ -213,10 +223,17 @@ type YAxisProps struct {
 	TickCount     int     // defaults to Recharts 5
 	Width         float64 // defaults to Recharts 60
 	TickFormatter func(any) string
-	// Ticks fixes the value ticks, the pendant of Recharts' ticks prop
-	// with a domain spanning them. The renderer computes nice ticks from
-	// zero when empty. TickFormatter labels them.
+
+	// Ticks is Recharts' ticks prop: drawn values, independent of Domain.
 	Ticks []float64
+	// Domain is Recharts' domain: two numbers or strings ("auto",
+	// "dataMin", "dataMax", "dataMin - 10", "dataMax + 10"). Nil uses
+	// [0, "auto"]. Other lengths panic with the prop name.
+	Domain []any
+	// AllowDataOverflow keeps numeric domain bounds instead of extending
+	// them to contain the data, like Recharts' allowDataOverflow.
+	AllowDataOverflow bool
+
 }
 
 // TooltipProps is the pendant of ChartTooltip: the cursor flag and the
@@ -1663,6 +1680,7 @@ type Model struct {
 	YAxisWidth    float64               `json:"yAxisWidth,omitempty"`
 	YAxisMargin   float64               `json:"yAxisMargin,omitempty"` // tickMargin of the y axis
 	TickCount     int                   `json:"tickCount,omitempty"`   // y ticks, Recharts default 5
+	AllowDataOverflow bool              `json:"allowDataOverflow,omitempty"`
 	Domain        [2]float64            `json:"domain"`
 	Ticks         []float64             `json:"ticks,omitempty"`
 	TickLabels    []string              `json:"tickLabels,omitempty"`

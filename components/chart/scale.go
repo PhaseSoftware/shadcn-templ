@@ -215,19 +215,51 @@ func setValueScale(m *Model, st *chartState) {
 	if count <= 0 {
 		count = 5
 	}
-	domain := parseSpecifiedDomain([]any{0, "auto"}, valueDomain(*m), false)
-	ticks := getNiceTickValues(domain, count, true)
-	if m.StackOffset == "expand" {
-		ticks = make([]float64, count)
-		for i := range ticks {
-			ticks[i] = float64(i) / float64(count-1)
+	var specified []any
+	var explicitTicks []float64
+	allowOverflow := false
+	if st.x != nil && len(st.x.Domain) != 0 && len(st.x.Domain) != 2 {
+		panic("chart.XAxisProps.Domain must contain exactly two entries")
+	}
+	if st.y != nil && len(st.y.Domain) != 0 && len(st.y.Domain) != 2 {
+		panic("chart.YAxisProps.Domain must contain exactly two entries")
+	}
+	if st.layout == "vertical" {
+		if st.x != nil {
+			specified, explicitTicks, allowOverflow = st.x.Domain, st.x.Ticks, st.x.AllowDataOverflow
 		}
+	} else if st.y != nil {
+		specified, explicitTicks, allowOverflow = st.y.Domain, st.y.Ticks, st.y.AllowDataOverflow
 	}
-	// Preserve the PR's explicit-tick behavior until the axis props land.
-	if st.layout != "vertical" && st.y != nil && len(st.y.Ticks) > 0 {
-		ticks = st.y.Ticks
+	if len(specified) == 0 {
+		specified = []any{0, "auto"}
 	}
-	m.Domain = [2]float64{ticks[0], ticks[len(ticks)-1]}
+	dataDomain := valueDomain(*m)
+	// detectReferenceElementsDomain extends the data domain for specified ticks.
+	for _, v := range explicitTicks {
+		dataDomain[0] = math.Min(dataDomain[0], v)
+		dataDomain[1] = math.Max(dataDomain[1], v)
+	}
+	domain := parseSpecifiedDomain(specified, dataDomain, allowOverflow)
+	auto := specified[0] == "auto" || specified[1] == "auto"
+	var ticks []float64
+	if auto {
+		ticks = getNiceTickValues(domain, count, true)
+		if m.StackOffset == "expand" && len(explicitTicks) == 0 {
+			ticks = make([]float64, count)
+			for i := range ticks {
+				ticks[i] = float64(i) / float64(count-1)
+			}
+		}
+		domain = [2]float64{ticks[0], ticks[len(ticks)-1]}
+	} else {
+		ticks = getTickValuesFixedDomain(domain, count, true)
+	}
+	if len(explicitTicks) > 0 {
+		ticks = explicitTicks
+	}
+	m.AllowDataOverflow = allowOverflow
+	m.Domain = domain
 	m.Ticks = ticks
 	var formatter func(any) string
 	if st.layout == "vertical" {

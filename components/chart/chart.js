@@ -647,6 +647,10 @@ function renderCartesian(panel, m, state, alpha = 1) {
     svg += "</g>";
   }
 
+  if (m.allowDataOverflow) {
+    const id = `${state.uid}-overflow`;
+    svg += `<defs><clipPath id="${id}"><rect x="${fmtF(vertical ? plotX : plotX - plotW / 2)}" y="${fmtF(vertical ? plotY - plotH / 2 : plotY)}" width="${fmtF(vertical ? plotW : plotW * 2)}" height="${fmtF(vertical ? plotH * 2 : plotH)}"/></clipPath></defs><g clip-path="url(#${id})">`;
+  }
   let xs = [];
   let band = 0;
   // The update-animation sources, Recharts' prevPoints/prevData: full
@@ -897,21 +901,25 @@ function renderCartesian(panel, m, state, alpha = 1) {
     }
   }
 
+  if (m.allowDataOverflow) svg += "</g>";
+
   // The x axis only renders when the chart declared a visible one.
-  if (m.xAxisHeight && !vertical) {
-  const widths = m.labels.map((l) => measureLabel(l, panel));
+  if (m.xAxisHeight) {
+  const labels = vertical ? m.tickLabels : m.labels;
+  const coords = vertical ? ticks.map(v => plotX + (v - domainMin) / (domainMax - domainMin || 1) * plotW) : xs;
+  const widths = labels.map((l) => measureLabel(l, panel));
   const labelY = plotBottom + TICK_SIZE + (m.tickMargin || 0);
   svg += `<g class="recharts-layer recharts-cartesian-axis recharts-xAxis xAxis">`;
   if (m.xAxisLine) {
     svg += `<line orientation="bottom" class="recharts-cartesian-axis-line" stroke="#666" fill="none" x1="${fmtF(plotX)}" y1="${fmtF(plotBottom)}" x2="${fmtF(plotX + plotW)}" y2="${fmtF(plotBottom)}"/>`;
   }
   svg += `<g class="recharts-cartesian-axis-ticks">`;
-  for (const tk of preserveEndTicks(xs, widths, 0, W, m.minTickGap || 5)) {
+  for (const tk of preserveEndTicks(coords, widths, 0, W, m.minTickGap || 5)) {
     svg += `<g class="recharts-layer recharts-cartesian-axis-tick">`;
     if (m.xTickLine) {
-      svg += `<line orientation="bottom" class="recharts-cartesian-axis-tick-line" stroke="#666" fill="none" x1="${fmtF(xs[tk.index])}" y1="${fmtF(plotBottom + TICK_SIZE)}" x2="${fmtF(xs[tk.index])}" y2="${fmtF(plotBottom)}"/>`;
+      svg += `<line orientation="bottom" class="recharts-cartesian-axis-tick-line" stroke="#666" fill="none" x1="${fmtF(coords[tk.index])}" y1="${fmtF(plotBottom + TICK_SIZE)}" x2="${fmtF(coords[tk.index])}" y2="${fmtF(plotBottom)}"/>`;
     }
-    svg += `<text orientation="bottom" height="${fmtF(m.xAxisHeight)}" x="${fmtF(tk.coord)}" y="${fmtF(labelY)}" stroke="none" fill="#666" class="recharts-text recharts-cartesian-axis-tick-value" text-anchor="middle"><tspan dy="0.71em">${m.labels[tk.index]}</tspan></text></g>`;
+    svg += `<text orientation="bottom" height="${fmtF(m.xAxisHeight)}" x="${fmtF(tk.coord)}" y="${fmtF(labelY)}" stroke="none" fill="#666" class="recharts-text recharts-cartesian-axis-tick-value" text-anchor="middle"><tspan dy="0.71em">${escapeHTML(labels[tk.index])}</tspan></text></g>`;
   }
   svg += "</g></g>";
   }

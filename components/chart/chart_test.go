@@ -49,10 +49,81 @@ func TestLineModelValues(t *testing.T) {
 
 func TestValueScale(t *testing.T) {
 	m := renderModel(t, nil, LineChart(LineChartProps{Data: []Datum{{"a": 10, "b": 20}, {"a": 20, "b": 30}}}), templ.Join(YAxis(YAxisProps{TickFormatter: func(v any) string { return fmt.Sprintf("%v units", v) }}), Line(LineProps{DataKey: "a"}), Line(LineProps{DataKey: "b"})))
-	if got := fmt.Sprint(m["ticks"]); got != "[0 8 16 24 32]" {
+	if got := fmt.Sprintf("%.9g", m["ticks"]); got != "[0 8 16 24 32]" {
 		t.Fatalf("ticks: %s", got)
 	}
 	if got := fmt.Sprint(m["tickLabels"]); got != "[0 units 8 units 16 units 24 units 32 units]" {
 		t.Fatalf("labels: %s", got)
+	}
+}
+
+func TestAxisDomain(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		axis          YAxisProps
+		domain, ticks string
+	}{
+		{"ticks", YAxisProps{Ticks: []float64{0, 100, 200, 300}}, "[0 300]", "[0 100 200 300]"},
+		{"data", YAxisProps{Domain: []any{"dataMin", "dataMax"}}, "[180 220]", "[180 190 200 210 220]"},
+		{"extend", YAxisProps{Domain: []any{100, 200}}, "[100 220]", "[100 130 160 190 220]"},
+		{"overflow", YAxisProps{Domain: []any{100, 200}, AllowDataOverflow: true}, "[100 200]", "[100 125 150 175 200]"},
+		{"offset", YAxisProps{Domain: []any{"dataMin - 10", "dataMax + 10"}}, "[170 230]", "[170 185 200 215 230]"},
+		{"both", YAxisProps{Domain: []any{100, 240}, Ticks: []float64{100, 180, 240}}, "[100 240]", "[100 180 240]"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, vertical := range []bool{false, true} {
+				data := []Datum{{"v": 180}, {"v": 200}, {"v": 220}}
+				root := LineChart(LineChartProps{Data: data})
+				children := templ.Join(YAxis(tc.axis), Line(LineProps{DataKey: "v"}))
+				if vertical {
+					root = BarChart(BarChartProps{Data: data, Layout: "vertical"})
+					children = templ.Join(XAxis(XAxisProps{Ticks: tc.axis.Ticks, Domain: tc.axis.Domain, AllowDataOverflow: tc.axis.AllowDataOverflow}), Bar(BarProps{DataKey: "v"}))
+				}
+				m := renderModel(t, nil, root, children)
+				if got := fmt.Sprintf("%.9g", m["domain"]); got != tc.domain {
+					t.Errorf("vertical=%v domain=%s want %s", vertical, got, tc.domain)
+				}
+				if got := fmt.Sprintf("%.9g", m["ticks"]); got != tc.ticks {
+					t.Errorf("vertical=%v ticks=%s want %s", vertical, got, tc.ticks)
+				}
+			}
+		})
+	}
+}
+
+func TestDomainLength(t *testing.T) {
+	for _, axis := range []string{"XAxisProps", "YAxisProps"} {
+		t.Run(axis, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r == nil || !strings.Contains(fmt.Sprint(r), axis+".Domain") {
+					t.Fatalf("panic = %v", r)
+				}
+			}()
+			st := &chartState{kind: "line"}
+			if axis == "XAxisProps" {
+				st.x = &XAxisProps{Domain: []any{0}}
+			} else {
+				st.y = &YAxisProps{Domain: []any{0, 1, 2}}
+			}
+			buildModel(context.Background(), st)
+		})
+	}
+}
+
+func TestParseSpecifiedDomain(t *testing.T) {
+	for _, tc := range []struct {
+		spec     []any
+		overflow bool
+		want     [2]float64
+	}{
+		{[]any{"auto", "auto"}, false, [2]float64{180, 220}},
+		{[]any{"unknown", "dataMax + nope"}, false, [2]float64{180, 220}},
+		{[]any{"dataMin - 2.5", "dataMax + 0.25"}, false, [2]float64{177.5, 220.25}},
+		{[]any{190.0, 200.0}, false, [2]float64{180, 220}},
+		{[]any{190.0, 200.0}, true, [2]float64{190, 200}},
+	} {
+		if got := parseSpecifiedDomain(tc.spec, [2]float64{180, 220}, tc.overflow); got != tc.want {
+			t.Errorf("%v: %v want %v", tc.spec, got, tc.want)
+		}
 	}
 }

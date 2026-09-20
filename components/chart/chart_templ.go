@@ -296,6 +296,15 @@ type XAxisProps struct {
 	TickMargin    float64
 	MinTickGap    float64 // defaults to Recharts' 5
 	TickFormatter func(any) string
+	// Ticks is Recharts' ticks prop: drawn values, independent of Domain.
+	Ticks []float64
+	// Domain is Recharts' domain: two numbers or strings ("auto",
+	// "dataMin", "dataMax", "dataMin - 10", "dataMax + 10"). Nil uses
+	// [0, "auto"]. Other lengths panic with the prop name.
+	Domain []any
+	// AllowDataOverflow keeps numeric domain bounds instead of extending
+	// them to contain the data, like Recharts' allowDataOverflow.
+	AllowDataOverflow bool
 }
 
 // YAxisProps is the pendant of Recharts' YAxis.
@@ -311,10 +320,16 @@ type YAxisProps struct {
 	TickCount     int     // defaults to Recharts 5
 	Width         float64 // defaults to Recharts 60
 	TickFormatter func(any) string
-	// Ticks fixes the value ticks, the pendant of Recharts' ticks prop
-	// with a domain spanning them. The renderer computes nice ticks from
-	// zero when empty. TickFormatter labels them.
+
+	// Ticks is Recharts' ticks prop: drawn values, independent of Domain.
 	Ticks []float64
+	// Domain is Recharts' domain: two numbers or strings ("auto",
+	// "dataMin", "dataMax", "dataMin - 10", "dataMax + 10"). Nil uses
+	// [0, "auto"]. Other lengths panic with the prop name.
+	Domain []any
+	// AllowDataOverflow keeps numeric domain bounds instead of extending
+	// them to contain the data, like Recharts' allowDataOverflow.
+	AllowDataOverflow bool
 }
 
 // TooltipProps is the pendant of ChartTooltip: the cursor flag and the
@@ -2396,7 +2411,7 @@ func legendContent(items []LegendItem, p *LegendProps) templ.Component {
 				var templ_7745c5c3_Var34 string
 				templ_7745c5c3_Var34, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues("background-color:" + it.Color)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/chart/chart.templ`, Line: 1634, Col: 88}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/chart/chart.templ`, Line: 1651, Col: 88}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 				if templ_7745c5c3_Err != nil {
@@ -2410,7 +2425,7 @@ func legendContent(items []LegendItem, p *LegendProps) templ.Component {
 			var templ_7745c5c3_Var35 string
 			templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(it.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/chart/chart.templ`, Line: 1636, Col: 15}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/chart/chart.templ`, Line: 1653, Col: 15}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 			if templ_7745c5c3_Err != nil {
@@ -2441,31 +2456,32 @@ func legendPad(verticalAlign string) string {
 // re-renders the SVG at real container pixels (Recharts'
 // ResponsiveContainer behavior) and drives tooltip and cursor from it.
 type Model struct {
-	Kind           string     `json:"kind"` // "bar" | "area" | "pie"
-	MarginTop      float64    `json:"marginTop"`
-	MarginRight    float64    `json:"marginRight"`
-	MarginBottom   float64    `json:"marginBottom"`
-	MarginLeft     float64    `json:"marginLeft"`
-	XAxisHeight    float64    `json:"xAxisHeight,omitempty"`
-	TickMargin     float64    `json:"tickMargin,omitempty"`
-	MinTickGap     float64    `json:"minTickGap,omitempty"`
-	YAxisWidth     float64    `json:"yAxisWidth,omitempty"`
-	YAxisMargin    float64    `json:"yAxisMargin,omitempty"` // tickMargin of the y axis
-	TickCount      int        `json:"tickCount,omitempty"`   // y ticks, Recharts default 5
-	Domain         [2]float64 `json:"domain"`
-	Ticks          []float64  `json:"ticks,omitempty"`
-	TickLabels     []string   `json:"tickLabels,omitempty"`
-	XTickLine      bool       `json:"xTickLine,omitempty"`
-	XAxisLine      bool       `json:"xAxisLine,omitempty"`
-	YTickLine      bool       `json:"yTickLine,omitempty"`
-	YAxisLine      bool       `json:"yAxisLine,omitempty"`
-	LegendHeight   float64    `json:"legendHeight,omitempty"`
-	LegendVAlign   string     `json:"legendVAlign,omitempty"` // "top" raises the legend above the plot
-	CategoryGap    float64    `json:"categoryGap,omitempty"`
-	Radius         float64    `json:"radius,omitempty"`
-	Grid           bool       `json:"grid,omitempty"`
-	GridHorizontal bool       `json:"gridHorizontal,omitempty"`
-	GridVertical   bool       `json:"gridVertical,omitempty"`
+	Kind              string     `json:"kind"` // "bar" | "area" | "pie"
+	MarginTop         float64    `json:"marginTop"`
+	MarginRight       float64    `json:"marginRight"`
+	MarginBottom      float64    `json:"marginBottom"`
+	MarginLeft        float64    `json:"marginLeft"`
+	XAxisHeight       float64    `json:"xAxisHeight,omitempty"`
+	TickMargin        float64    `json:"tickMargin,omitempty"`
+	MinTickGap        float64    `json:"minTickGap,omitempty"`
+	YAxisWidth        float64    `json:"yAxisWidth,omitempty"`
+	YAxisMargin       float64    `json:"yAxisMargin,omitempty"` // tickMargin of the y axis
+	TickCount         int        `json:"tickCount,omitempty"`   // y ticks, Recharts default 5
+	AllowDataOverflow bool       `json:"allowDataOverflow,omitempty"`
+	Domain            [2]float64 `json:"domain"`
+	Ticks             []float64  `json:"ticks,omitempty"`
+	TickLabels        []string   `json:"tickLabels,omitempty"`
+	XTickLine         bool       `json:"xTickLine,omitempty"`
+	XAxisLine         bool       `json:"xAxisLine,omitempty"`
+	YTickLine         bool       `json:"yTickLine,omitempty"`
+	YAxisLine         bool       `json:"yAxisLine,omitempty"`
+	LegendHeight      float64    `json:"legendHeight,omitempty"`
+	LegendVAlign      string     `json:"legendVAlign,omitempty"` // "top" raises the legend above the plot
+	CategoryGap       float64    `json:"categoryGap,omitempty"`
+	Radius            float64    `json:"radius,omitempty"`
+	Grid              bool       `json:"grid,omitempty"`
+	GridHorizontal    bool       `json:"gridHorizontal,omitempty"`
+	GridVertical      bool       `json:"gridVertical,omitempty"`
 	// Layout "vertical" swaps the axes and draws the bars horizontally.
 	Layout      string                `json:"layout,omitempty"`
 	XAxisHide   bool                  `json:"xAxisHide,omitempty"`

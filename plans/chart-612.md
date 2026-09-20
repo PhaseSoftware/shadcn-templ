@@ -58,7 +58,7 @@ Checks: `go test ./components/chart/`, `probe.mjs` chromium and webkit diffed ag
 
 ### 3. Ticks, Domain and AllowDataOverflow
 
-- [ ] Done
+- [x] Done
 
 `chart.templ`: `Ticks []float64`, `Domain []any` and `AllowDataOverflow bool` on `YAxisProps` and `XAxisProps`, doc comments naming the Recharts props and the grammar. `buildModel` takes them from the numeric axis (YAxis in the default layout, XAxis when vertical): specified ticks extend the data domain (the ticks fold of `detectReferenceElementsDomain`), `parseSpecifiedDomain(domain, dataDomain, allowDataOverflow)`, then `getNiceTickValues` when an end is `"auto"` (or no domain given), else `getTickValuesFixedDomain`; drawn ticks are `Ticks` when set, else the computed ones; the scale domain spans the drawn ticks in the `auto` case like `getTicksOfScale` does (`scale.domain([min(ticks), max(ticks)])`) and the parsed domain otherwise. A `Domain` of length other than 0 or 2 panics with a message naming the prop. Fixtures `ticks`: a line living between 180 and 220 with `Ticks` only, `Domain: []any{"dataMin", "dataMax"}` only, `Domain: []any{100, 200}` with data reaching 220 without and with `AllowDataOverflow`, `Domain: []any{"dataMin - 10", "dataMax + 10"}`, and `Ticks` together with `Domain`.
 
@@ -133,5 +133,13 @@ Checks: `go build ./...`, `go vet ./components/chart/`.
 - `go test ./components/chart/`, JS syntax and `git diff --check` passed. Both browser captures match all baseline tick texts and paths, including the three area-axis ticks.
 - Implementation note: the upstream control flow is ported with float64 arithmetic, preserving the existing JS renderer's arithmetic rather than adding Decimal.js-equivalent dependencies. Single-valued and reversed intervals follow recharts-scale; expand retains the existing evenly spaced 0..1 ticks.
 - The watcher regenerated `chart_templ.go`.
+
+### Task 3
+
+- Added Ticks, Domain and AllowDataOverflow on both axes, domain-length validation with prop names, specified-tick domain extension, auto/fixed tick selection and numeric X-axis labels. Overflow clips series geometry on the numeric axis.
+- Six domain cases are tested for both axis orientations; extra parser checks cover auto, unparseable strings, decimal offsets and numeric overflow. Both browser runs pass the six fixtures and match every baseline demo.
+- `go test ./components/chart/`, JS syntax and `git diff --check` passed. Tick fixtures use 0/100/200/300 so Recharts-style collision culling does not obscure any expected label.
+- Clarification of the plan's “drawn ticks” wording: auto domains follow computed nice ticks, while explicit Ticks controls drawn labels, matching getTicksOfScale; explicit labels alone do not replace the default zero-based domain.
+- Browser numeric comparisons tolerate float64 representation noise (e.g. 220.00000000000003); displayed labels remain exact.
 
 ## Planner review
