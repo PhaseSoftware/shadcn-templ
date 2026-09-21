@@ -3,6 +3,31 @@
   // Exit animations run at the tw-animate default (150ms); hide after.
   const EXIT_MS = 170;
 
+  const escapeTargets = new WeakSet();
+  function listenForEscape(element) {
+    if (!element || escapeTargets.has(element)) return;
+    element.addEventListener("keydown", closeOnEscapeKeyDown);
+    escapeTargets.add(element);
+  }
+
+  // useDismiss: popup/reference listeners stop Escape before outer document handlers.
+  function closeOnEscapeKeyDown(event) {
+    if (event.key !== "Escape") return;
+    const contents = event.currentTarget === document
+      ? allContents()
+      : [event.currentTarget.hasAttribute("data-tui-tooltip-content")
+        ? event.currentTarget
+        : contentFor(event.currentTarget)];
+    let handled = false;
+    for (const content of contents) {
+      if (!content?.hasAttribute("data-open")) continue;
+      if (requestOpenChange(triggerFor(content), false)) event.preventDefault();
+      event.stopPropagation();
+      handled = true;
+    }
+    return handled;
+  }
+
   function allContents() {
     return document.querySelectorAll("[data-tui-tooltip-content]");
   }
@@ -45,6 +70,7 @@
   // document. Trigger-presence heuristics judged mid-swap moments wrongly -
   // multi-phase swap layers briefly disconnect the new triggers.
   function portal(content) {
+    listenForEscape(content);
     document.querySelectorAll("body > [data-tui-tooltip-content]").forEach((c) => {
       if (c !== content && c._tuiPortalOwner && !c._tuiPortalOwner.isConnected) {
         stopAutoPositioning(c);
@@ -189,9 +215,9 @@
   }
 
   function requestOpenChange(trigger, nextOpen) {
-    if (!trigger) return;
+    if (!trigger) return false;
     const content = contentFor(trigger);
-    if (!content || content.hasAttribute("data-open") === nextOpen) return;
+    if (!content || content.hasAttribute("data-open") === nextOpen) return false;
     const accepted = content.dispatchEvent(
       new CustomEvent("tooltip-open-change", {
         bubbles: true,
@@ -199,9 +225,10 @@
         detail: { open: nextOpen },
       }),
     );
-    if (!accepted || content.hasAttribute("data-tui-tooltip-controlled")) return;
+    if (!accepted || content.hasAttribute("data-tui-tooltip-controlled")) return false;
     if (nextOpen) open(trigger);
     else close(content);
+    return true;
   }
 
   function requestCloseAll() {
@@ -238,9 +265,7 @@
     if (content) requestOpenChange(trigger, false);
   });
 
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") requestCloseAll();
-  });
+  document.addEventListener("keydown", closeOnEscapeKeyDown);
 
   // Lift every content out of its inert <template> into <body>, shadcn's
   // portal renders it there from the start.
@@ -260,6 +285,7 @@
         }
         tpl.remove();
       });
+    document.querySelectorAll("[data-tui-tooltip-trigger]").forEach(listenForEscape);
     allContents().forEach((content) => {
       portal(content);
       if (content.getAttribute("data-tui-tooltip-initial-open") === "true") {

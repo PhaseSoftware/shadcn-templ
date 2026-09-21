@@ -64,7 +64,7 @@ Checks: `node tmp/escape/probe.mjs chromium`, same for webkit.
 
 ### 2. Dialog and drawer
 
-- [ ] Done
+- [x] Done
 
 `dialog.js`: `closeOnEscapeKeyDown` per Decisions, attached to `state.popup` in `ensureDialog` and to every trigger of that popup when `init` walks them; the document listener's Escape branch calls it; `requestOpenChange` returns the accepted flag. `drawer.js`: same on the `<dialog>` element in `ensureDrawer` and on its triggers; the capture-phase listener becomes a bubble-phase call of the same function without the two guards.
 
@@ -74,7 +74,7 @@ Checks: `node tmp/escape/probe.mjs chromium`, same for webkit, `go build ./...`,
 
 ### 3. Menus, select, popover, hover card, tooltip, combobox
 
-- [ ] Done
+- [x] Done
 
 The same function in `dropdownmenu.js`, `contextmenu.js`, `select.js`, `popover.js`, `hovercard.js`, `tooltip.js` and `combobox.js`, attached to each lifted content and to each trigger (the input for the combobox) at lift and `init`, the document listeners calling it, `requestOpenChange` returning the accepted flag where it does not yet.
 
@@ -93,5 +93,18 @@ Added gitignored `tmp/escape/probe.mjs` with all eight scenarios, synthetic canc
 Dialog and drawer now install one closeOnEscapeKeyDown function on popup/content, references and document. WeakSets prevent duplicate element bindings. Dialog keeps its IME guard and topmost-open check; drawer keeps hasOpenNested and dismissibility and no longer uses capture, defaultPrevented or the cross-component popup selector. Dialog's requestOpenChange now returns a boolean; drawer already did. Existing controlled/veto semantics are unchanged.
 
 B and C pass every state, focus and propagation check in Chromium and WebKit. The complete probe has 16 remaining baseline failures per engine, all in the not-yet-ported anchored popups or A. A's second (sheet) Escape cannot be tested in that sequence until task 3 prevents the first Escape from closing the sheet. Therefore task 2's checkbox stays open until the integrated run. Logs: `tmp/escape/task2-{chromium,webkit}.log`. No new failures or page errors. `go build ./...`, JS syntax checks and `git diff --check` pass. Watcher-generated bundle reference included.
+
+### Task 3 and integrated completion (Codex, 2026-09-21)
+
+Dropdown menu, context menu, select, popover, hover card, tooltip and combobox now each have the same Escape handler on their content, their references and document. The combobox binds both input and button references so both existing patterns work. A local event resolves only its own content from currentTarget; the document fallback visits the script's open contents. Each accepted close prevents default, and handled Escape stops propagation even if its close request was vetoed. Request functions that previously returned nothing now return a boolean; existing controlled and cancelable change behavior is retained. Select and dropdown keep their existing focus return. Submenu events bubble to the root menu's handler and close the tree. No shared layer registry or cross-component selectors were added.
+
+Final validation on the completed implementation:
+
+- `node tmp/escape/probe.mjs chromium` and `webkit`: exit 0, zero failed expectations for all A-H scenarios. Logs: `tmp/escape/fixed-{chromium,webkit}.log`. A now keeps the sheet open and refocuses the dropdown trigger after the first Escape; the second closes the sheet. B/C propagation and D's document fallback pass. E-H preserve their expected close/focus/value behavior.
+- Additional `tmp/escape/bindings.mjs` passes in both engines for all nine primitives, including hover card and the popover element paths not covered by the main probe. It verifies one close request per event after repeated DOM mutations/re-init, both content and reference bindings, canceled requests staying unprevented but stopping before document, and accepted local closes preventing default. Logs: `tmp/escape/bindings-{chromium,webkit}.log`. No page errors.
+- Restored B/G in the gitignored scroll-lock probe to the originally intended two Escape presses. `node tmp/scroll-lock/probe.mjs chromium` and `webkit`: exit 0, zero failures. Logs: `tmp/escape/scroll-lock-{chromium,webkit}.log`.
+- `go build ./...`, syntax checks for the changed JS files, and `git diff --check` pass. The Escape search has exactly one branch in each of the nine closeOnEscapeKeyDown functions plus the untouched chart branch.
+
+Task 2's dependent sheet checks now pass and both remaining task checkboxes are checked. The normal scripts watcher generated every bundle-manifest change; no manual templ generation or minification. No markup, classes, chart, command, sidebar, outside-press or scroll-lock implementation changes. `plans/chart-612.md` and `plans/release-beta-10.md` remain untouched. Ready for Planner review; plan status stays Planner-owned. No runtime comparison against ui.shadcn.com or visible-browser verification is claimed for this execution.
 
 ## Planner review

@@ -3,6 +3,31 @@
   // Exit animations run for 100ms (duration-100); hide shortly after.
   const EXIT_MS = 120;
 
+  const escapeTargets = new WeakSet();
+  function listenForEscape(element) {
+    if (!element || escapeTargets.has(element)) return;
+    element.addEventListener("keydown", closeOnEscapeKeyDown);
+    escapeTargets.add(element);
+  }
+
+  // useDismiss: popup/reference listeners stop Escape before outer document handlers.
+  function closeOnEscapeKeyDown(event) {
+    if (event.key !== "Escape") return;
+    const contents = event.currentTarget === document
+      ? allContents()
+      : [event.currentTarget.hasAttribute("data-tui-hovercard-content")
+        ? event.currentTarget
+        : contentFor(event.currentTarget)];
+    let handled = false;
+    for (const content of contents) {
+      if (!content?.hasAttribute("data-open")) continue;
+      if (requestOpenChange(content, false)) event.preventDefault();
+      event.stopPropagation();
+      handled = true;
+    }
+    return handled;
+  }
+
   function allContents() {
     return document.querySelectorAll("[data-tui-hovercard-content]");
   }
@@ -40,6 +65,7 @@
   // document. Trigger-presence heuristics judged mid-swap moments wrongly -
   // multi-phase swap layers briefly disconnect the new triggers.
   function portal(content) {
+    listenForEscape(content);
     document.querySelectorAll("body > [data-tui-hovercard-content]").forEach((c) => {
       if (c !== content && c._tuiPortalOwner && !c._tuiPortalOwner.isConnected) {
         stopAutoPositioning(c);
@@ -216,11 +242,7 @@
     scheduleClose(content);
   });
 
-  document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") {
-    allContents().forEach((content) => requestOpenChange(content, false));
-  }
-  });
+  document.addEventListener("keydown", closeOnEscapeKeyDown);
 
   // Lift SSR'd contents out of their inert <template> wrappers into <body>,
   // replacing a stale portaled copy on re-swaps (e.g. htmx).
@@ -244,6 +266,7 @@
   // and whenever new cards appear in the DOM.
   function init() {
     liftTemplates();
+    document.querySelectorAll("[data-tui-hovercard-trigger]").forEach(listenForEscape);
     allContents().forEach((content) => {
       if (triggerFor(content)) portal(content);
     if (content.getAttribute("data-tui-hovercard-initial-open") === "true") {

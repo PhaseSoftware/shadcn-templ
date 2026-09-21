@@ -7,6 +7,31 @@
   const SUB_OPEN_DELAY = 100;
   const SUB_CLOSE_DELAY = 300;
 
+  const escapeTargets = new WeakSet();
+  function listenForEscape(element) {
+    if (!element || escapeTargets.has(element)) return;
+    element.addEventListener("keydown", closeOnEscapeKeyDown);
+    escapeTargets.add(element);
+  }
+
+  // useDismiss: popup/reference listeners stop Escape before outer document handlers.
+  function closeOnEscapeKeyDown(event) {
+    if (event.key !== "Escape") return;
+    const contents = event.currentTarget === document
+      ? allContents()
+      : [event.currentTarget.hasAttribute("data-tui-contextmenu-content")
+        ? event.currentTarget
+        : contentFor(event.currentTarget)];
+    let handled = false;
+    for (const content of contents) {
+      if (!content?.hasAttribute("data-open")) continue;
+      if (requestOpenChange(content, false)) event.preventDefault();
+      event.stopPropagation();
+      handled = true;
+    }
+    return handled;
+  }
+
   function allContents() {
     return document.querySelectorAll("[data-tui-contextmenu-content]");
   }
@@ -77,6 +102,7 @@
   }
 
   function portal(content) {
+    listenForEscape(content);
     removeOrphanedContents(content);
     if (content.parentElement !== document.body) {
       if (!content._tuiPortalOwner) content._tuiPortalOwner = content.parentElement;
@@ -459,6 +485,7 @@
 
   function init() {
     liftTemplates();
+    document.querySelectorAll("[data-tui-contextmenu-trigger]").forEach(listenForEscape);
     removeOrphanedContents();
     document.querySelectorAll("[data-tui-contextmenu-trigger]").forEach((trigger) => {
       const content = contentFor(trigger);
@@ -572,10 +599,11 @@
   });
 
   document.addEventListener("keydown", (e) => {
+    if (closeOnEscapeKeyDown(e)) return;
     const content = anyOpen();
     if (!content) return;
 
-    if (e.key === "Escape" || e.key === "Tab") {
+    if (e.key === "Tab") {
       closeAll();
       return;
     }

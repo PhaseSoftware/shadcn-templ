@@ -5,6 +5,31 @@
   const SIDE_OFFSET = 6;
   const COLLISION_PADDING = 5;
 
+  const escapeTargets = new WeakSet();
+  function listenForEscape(element) {
+    if (!element || escapeTargets.has(element)) return;
+    element.addEventListener("keydown", closeOnEscapeKeyDown);
+    escapeTargets.add(element);
+  }
+
+  // useDismiss: popup/reference listeners stop Escape before outer document handlers.
+  function closeOnEscapeKeyDown(event) {
+    if (event.key !== "Escape") return;
+    const contents = event.currentTarget === document
+      ? allContents()
+      : [event.currentTarget.hasAttribute("data-tui-combobox-content")
+        ? event.currentTarget
+        : contentFor(event.currentTarget)];
+    let handled = false;
+    for (const content of contents) {
+      if (!content?.hasAttribute("data-open")) continue;
+      if (requestOpenChange(content, false)) event.preventDefault();
+      event.stopPropagation();
+      handled = true;
+    }
+    return handled;
+  }
+
   function allContents() {
     return document.querySelectorAll("[data-tui-combobox-content]");
   }
@@ -131,6 +156,7 @@
   // document. Trigger-presence heuristics judged mid-swap moments wrongly -
   // multi-phase swap layers briefly disconnect the new triggers.
   function portal(content) {
+    listenForEscape(content);
     document.querySelectorAll("body > [data-tui-combobox-content]").forEach((c) => {
       if (c !== content && c._tuiPortalOwner && !c._tuiPortalOwner.isConnected) {
         stopAutoPositioning(c);
@@ -523,6 +549,7 @@
 
   function init() {
     liftTemplates();
+    document.querySelectorAll("[data-tui-combobox-input], [data-tui-combobox-trigger]").forEach(listenForEscape);
     allContents().forEach((content) => {
       if (anchorFor(content)) portal(content); // portal up front, like React on mount
     if (content.getAttribute("data-tui-combobox-initial-open") === "true") {
@@ -641,10 +668,7 @@
   });
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      closeAll();
-      return;
-    }
+    if (closeOnEscapeKeyDown(e)) return;
     if (!(e.target instanceof Element) || !e.target.hasAttribute("data-tui-combobox-input")) return;
     const content = contentFor(e.target);
     if (!content) return;

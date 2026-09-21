@@ -4,6 +4,31 @@
   const EXIT_MS = 120; // exit animation (duration-100) + slack
   const COLLISION_PADDING = 5;
 
+  const escapeTargets = new WeakSet();
+  function listenForEscape(element) {
+    if (!element || escapeTargets.has(element)) return;
+    element.addEventListener("keydown", closeOnEscapeKeyDown);
+    escapeTargets.add(element);
+  }
+
+  // useDismiss: popup/reference listeners stop Escape before outer document handlers.
+  function closeOnEscapeKeyDown(event) {
+    if (event.key !== "Escape") return;
+    const contents = event.currentTarget === document
+      ? allContents()
+      : [event.currentTarget.hasAttribute("data-tui-popover-content")
+        ? event.currentTarget
+        : contentFor(event.currentTarget)];
+    let handled = false;
+    for (const content of contents) {
+      if (!content?.hasAttribute("data-open")) continue;
+      if (requestOpenChange(content, false)) event.preventDefault();
+      event.stopPropagation();
+      handled = true;
+    }
+    return handled;
+  }
+
   function allContents() {
     return document.querySelectorAll("[data-tui-popover-content]");
   }
@@ -82,6 +107,7 @@
   // document. Trigger-presence heuristics judged mid-swap moments wrongly -
   // multi-phase swap layers briefly disconnect the new triggers.
   function portal(content) {
+    listenForEscape(content);
     document.querySelectorAll("body > [data-tui-popover-content]").forEach((c) => {
       if (c !== content && c._tuiPortalOwner && !c._tuiPortalOwner.isConnected) {
         stopAutoPositioning(c);
@@ -176,7 +202,7 @@
   }
 
   function requestOpenChange(content, nextOpen, returnFocus) {
-    if (!content || isOpen(content) === nextOpen) return;
+    if (!content || isOpen(content) === nextOpen) return false;
     const accepted = content.dispatchEvent(
       new CustomEvent("popover-open-change", {
         bubbles: true,
@@ -184,9 +210,10 @@
         detail: { open: nextOpen },
       }),
     );
-    if (!accepted || content.hasAttribute("data-tui-popover-controlled")) return;
+    if (!accepted || content.hasAttribute("data-tui-popover-controlled")) return false;
     if (nextOpen) open(content);
     else close(content, returnFocus);
+    return true;
   }
 
   function open(content) {
@@ -312,9 +339,7 @@
     }
   });
 
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") requestCloseAll();
-  });
+  document.addEventListener("keydown", closeOnEscapeKeyDown);
 
 
   // Portal all contents up front (React portals on mount too): popovers must
@@ -340,6 +365,7 @@
 
   function init() {
     liftTemplates();
+    document.querySelectorAll("[data-tui-popover-trigger]").forEach(listenForEscape);
     allContents().forEach((content) => {
       if (!triggerFor(content)) return;
       portal(content);

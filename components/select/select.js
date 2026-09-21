@@ -11,6 +11,33 @@
   const ARROW_TICK_MS = 40; // hovering a scroll arrow scrolls one item per tick
   const SELECTED_DELAY = 400; // mouseup selection stays disabled this long after open
 
+  const escapeTargets = new WeakSet();
+  function listenForEscape(element) {
+    if (!element || escapeTargets.has(element)) return;
+    element.addEventListener("keydown", closeOnEscapeKeyDown);
+    escapeTargets.add(element);
+  }
+
+  // useDismiss: popup/reference listeners stop Escape before outer document handlers.
+  function closeOnEscapeKeyDown(event) {
+    if (event.key !== "Escape") return;
+    const contents = event.currentTarget === document
+      ? allContents()
+      : [event.currentTarget.hasAttribute("data-tui-select-content")
+        ? event.currentTarget
+        : contentFor(event.currentTarget)];
+    let handled = false;
+    for (const content of contents) {
+      if (!content?.hasAttribute("data-open")) continue;
+      const trigger = triggerFor(content);
+      if (requestOpenChange(content, false)) event.preventDefault();
+      if (trigger) trigger.focus();
+      event.stopPropagation();
+      handled = true;
+    }
+    return handled;
+  }
+
   function allContents() {
     return document.querySelectorAll("[data-tui-select-content]");
   }
@@ -132,6 +159,7 @@
   }
 
   function portal(content) {
+    listenForEscape(content);
     removeOrphanedContents(content);
     if (content.parentElement !== document.body) {
       if (!content._tuiPortalOwner) content._tuiPortalOwner = content.parentElement;
@@ -606,7 +634,7 @@
   }
 
   function requestOpenChange(content, nextOpen, openMethod) {
-    if (!content || isOpen(content) === nextOpen) return;
+    if (!content || isOpen(content) === nextOpen) return false;
     const accepted = content.dispatchEvent(
       new CustomEvent("select-open-change", {
         bubbles: true,
@@ -617,10 +645,11 @@
         },
       }),
     );
-    if (!accepted || content.hasAttribute("data-tui-select-open-controlled")) return;
+    if (!accepted || content.hasAttribute("data-tui-select-open-controlled")) return false;
     const trigger = triggerFor(content);
     if (nextOpen && trigger) open(content, trigger, openMethod);
     else if (!nextOpen) close(content);
+    return true;
   }
 
   function requestCloseAll() {
@@ -693,6 +722,7 @@
 
   function init() {
     liftTemplates();
+    document.querySelectorAll("[data-tui-select-trigger]").forEach(listenForEscape);
     removeOrphanedContents();
     document.querySelectorAll("[data-tui-select-trigger]").forEach((trigger) => {
       const content = contentFor(trigger);
@@ -895,17 +925,8 @@
   let typeTimer;
 
   document.addEventListener("keydown", (e) => {
+    if (closeOnEscapeKeyDown(e)) return;
     if (!(e.target instanceof Element)) return;
-
-    if (e.key === "Escape") {
-      allContents().forEach((content) => {
-        if (!isOpen(content)) return;
-        const trigger = triggerFor(content);
-        requestOpenChange(content, false);
-        if (trigger) trigger.focus();
-      });
-      return;
-    }
 
     // Closed trigger: arrow keys open the listbox (Enter/Space go through
     // the native button click path).

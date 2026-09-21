@@ -7,6 +7,31 @@
   const SUB_OPEN_DELAY = 100;
   const SUB_CLOSE_DELAY = 300;
 
+  const escapeTargets = new WeakSet();
+  function listenForEscape(element) {
+    if (!element || escapeTargets.has(element)) return;
+    element.addEventListener("keydown", closeOnEscapeKeyDown);
+    escapeTargets.add(element);
+  }
+
+  // useDismiss: popup/reference listeners stop Escape before outer document handlers.
+  function closeOnEscapeKeyDown(event) {
+    if (event.key !== "Escape") return;
+    const contents = event.currentTarget === document
+      ? allContents()
+      : [event.currentTarget.hasAttribute("data-tui-dropdownmenu-content")
+        ? event.currentTarget
+        : contentFor(event.currentTarget)];
+    let handled = false;
+    for (const content of contents) {
+      if (!content?.hasAttribute("data-open")) continue;
+      if (requestOpenChange(content, false, false, true)) event.preventDefault();
+      event.stopPropagation();
+      handled = true;
+    }
+    return handled;
+  }
+
   function allContents() {
     return document.querySelectorAll("[data-tui-dropdownmenu-content]");
   }
@@ -95,6 +120,7 @@
   }
 
   function portal(content) {
+    listenForEscape(content);
     removeOrphanedContents(content);
     if (content.parentElement !== document.body) {
       if (!content._tuiPortalOwner) content._tuiPortalOwner = content.parentElement;
@@ -316,7 +342,7 @@
   }
 
   function requestOpenChange(content, nextOpen, focusOn, refocusTrigger) {
-    if (!content || isOpen(content) === nextOpen) return;
+    if (!content || isOpen(content) === nextOpen) return false;
     const accepted = content.dispatchEvent(
       new CustomEvent("dropdownmenu-open-change", {
         bubbles: true,
@@ -324,10 +350,11 @@
         detail: { open: nextOpen },
       }),
     );
-    if (!accepted || content.hasAttribute("data-tui-dropdownmenu-controlled")) return;
+    if (!accepted || content.hasAttribute("data-tui-dropdownmenu-controlled")) return false;
     const trigger = triggerFor(content);
     if (nextOpen && trigger) open(content, trigger, focusOn);
     else if (!nextOpen) close(content, refocusTrigger);
+    return true;
   }
 
   function requestCloseAll(refocusTrigger) {
@@ -531,6 +558,7 @@
 
   function init() {
     liftTemplates();
+    document.querySelectorAll("[data-tui-dropdownmenu-trigger]").forEach(listenForEscape);
     removeOrphanedContents();
     document.querySelectorAll("[data-tui-dropdownmenu-trigger]").forEach((trigger) => {
       const content = contentFor(trigger);
@@ -679,13 +707,10 @@
   });
 
   document.addEventListener("keydown", (e) => {
+    if (closeOnEscapeKeyDown(e)) return;
     const content = anyOpen();
     if (!content) return;
 
-    if (e.key === "Escape") {
-      requestCloseAll(true);
-      return;
-    }
     if (e.key === "Tab") {
       requestCloseAll(false);
       return;
