@@ -94,7 +94,7 @@ Checks: `go test ./internal/...`, `go build ./...`, `task dev` plus a manual loo
 
 ### 5. The scaffold's own development switch becomes an opt-in
 
-- [ ] Done
+- [x] Done
 
 `cmd/shadcn-templ/templates/templ-app/main.go.tmpl:60` still reads `os.Getenv("GO_ENV") != "production"` for the user's CSS, fonts, images and now the bundle, with the same silent failure the issue reports: an unset variable means disk reads and `no-store` in production. Replace it with a small named helper in that file returning `os.Getenv("SHADCN_TEMPL_DEV") == "true" || os.Getenv("TEMPL_DEV_MODE") == "true"`, with `os.Getenv("GO_ENV") == "development"` kept as a deprecated third alias and a comment saying it goes away after this minor version. Both primary forms are positive matches, so anything that is not an explicit yes serves production. The scaffold `Taskfile.yml` dev task sets `SHADCN_TEMPL_DEV: "true"` in its `env:` block; templ sets `TEMPL_DEV_MODE=true` itself before running `--cmd` under `--watch` (`cmd/templ/generatecmd/cmd.go:241`), which covers anyone not using our Taskfile. `internal/registryapi/styleitems.go` keeps its own `isDevelopment`, but its comment claims to mirror `components/scripts.go`, which no longer exists - repoint the comment at the rule itself.
 
@@ -140,5 +140,11 @@ Removed the runtime handler and component embed from the shipped surface; script
 Added repo-only `SourceFiles` and switched the docs source viewer and production registry reader to it. Removed the docs bundle route and obsolete middleware path exception. The asset route now gives the hashed JS one-year immutable caching in production.
 
 `go test ./internal/...` and `go build ./...` pass. Ran the built docs server with `GO_ENV=production` on a dedicated local port: `/docs/components/button` returns 200 with its source path and generated script URL, the button registry endpoint returns non-empty content for every file, and the JS response is byte-identical to the original handler dump with `public, max-age=31536000, immutable`. Stopped the test process afterward.
+
+### Task 5
+
+The scaffold defaults to embedded production assets. Explicit SHADCN_TEMPL_DEV/TEMPL_DEV_MODE enables disk serving and no-store; GO_ENV=development is the deprecated alias. The Taskfile env setting landed with Task 2. Added the scaffold's missing asset embed, which is necessary for the specified production behavior.
+
+A subprocess integration test compiles the actual scaffold main/asset files with a minimal Go page stub (no templ generation), changes the disk asset after compilation, and checks all three dev flags, unset/unknown/false flags, embedded versus disk bytes, and Cache-Control. This replaces a manual scaffold task-dev/go-run cycle and passes. The test caught and fixed the missing leading slash after StripPrefix. Only hashed JS is immutable; unhashed CSS revalidates to avoid stale deployments. Fresh CLI scaffold installation also passes.
 
 ## Planner review
