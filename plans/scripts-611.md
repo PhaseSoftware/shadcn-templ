@@ -156,3 +156,22 @@ Final `go build ./...` and `git diff --check` pass. Production HTTP smoke checks
 Ready for Planner review. Implementation is complete; the only open checkbox is Task 3's pre-existing full-component-suite failure recorded above. No component markup, classes, JS behavior or minified assets were changed.
 
 ## Planner review
+
+Reviewed the six commits as a whole, then ran the work end to end rather than trusting the unit tests. Verdict: all six tasks pass their "done when" line. One behaviour change nobody wrote down, one test fixed, three notes.
+
+**Verified by running it, not by reading it.**
+
+- Docs site, `GO_ENV=production`, port 8099: `/docs/components/button` renders `<script defer nonce="" src="/assets/js/shadcn-templ-d973fedcd37cd54a.js">`, the asset returns 200 with exactly 555,497 bytes and `Cache-Control: public, max-age=31536000, immutable`. Same bytes and same hash as the deleted handler produced.
+- A fresh `init -t templ` against that registry: the components root holds `scripts.templ` and `scripts_bundle.go` and nothing else, `components.json` carries `"scripts": {"dir": "assets/js", "path": "/assets/js"}`, `.gitignore` carries `assets/js/shadcn-templ-*.js`, and the bundle is 165,739 bytes - only the installed components, not the repo's 555,497.
+- `add chart` in that project rebuilt to `shadcn-templ-2304792db21c25b8.js`, rewrote the manifest constant and deleted the previous asset. Stale cleanup works.
+- That scaffold compiles and runs. With no environment variable at all it serves the bundle with `public, max-age=31536000, immutable`; with `SHADCN_TEMPL_DEV=true` and again with `TEMPL_DEV_MODE=true` it serves `no-store`. The inverted default from task 5 holds in a real binary.
+
+**Finding: gzip is gone, and it was load bearing.** The deleted handler compressed the bundle once at startup, behind a comment saying it existed so "bare Go deployments without a compressing proxy still ship ~5x smaller transfers". The asset route does not compress: verified with `Accept-Encoding: gzip`, no `Content-Encoding` in the response, full 555,497 bytes on the wire against 130,009 gzipped. A deployment behind Caddy, nginx, Cloudflare or any CDN loses nothing, and this is also how Next behaves - static chunks are compressed by the platform, not by the framework. A bare `go build` deployment now ships 4.3x more. `installation.md:305` states the new ownership ("Compression belongs to your asset server or proxy"), so it is documented rather than silent, and neither the plan nor this review asked for it to be kept. Flagged for the owner to accept or to answer with gzip middleware in the scaffold's asset handler.
+
+**Fixed while reviewing: `components/floatingui/positioning_test.go:45`.** Not this work's doing and red on `origin/main` too. Commit `8efbc29a` (19 September, "menu-regressions 1: restore fixed submenu positioning") moved the dropdown's sub content from `absolute` to `fixed` in both `.js` and `.templ` because `absolute` put it under the popup's overflow clip; its plan said "exactly two source lines. Nothing else", so the assertion counting two `strategy: "absolute"` occurrences was never updated. The test now asserts one `absolute` and one `fixed` in `dropdownmenu.js` plus the `hidden fixed inset-auto left-0 top-0` class in the template, which is the shape it already uses for the context menu. `go test ./...` is green.
+
+**Notes, none blocking.**
+
+1. `UpdateScripts` with no component JS at all writes a zero byte asset and a manifest pointing at it. `add` only calls it behind `HasJS()` or an existing manifest, so this is reachable only through a bare `shadcn-templ bundle` in a project with no scripts yet. Harmless, slightly odd.
+2. The builder's atomic write, the `.min.js` skip, the `*/*.js` shape and the alias aware package clause all match Decisions, and the temp files (`.bundle-*`) carry no `.js` suffix, so the watcher cannot retrigger itself on its own writes.
+3. Task 2's log records a deviation worth keeping visible: `add` rebuilds whenever the tree contains the manifest, not only when JS bytes changed, so a repeated `add --overwrite` cannot leave the registry's URL and hash in a local project. That is the right call and it has a regression test.
