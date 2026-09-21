@@ -64,7 +64,7 @@ Checks: `go build ./...`, `go test ./cmd/shadcn-templ/...`, and a byte compariso
 
 ### 2. `shadcn-templ bundle`, and `add` calls it
 
-- [ ] Done
+- [x] Done
 
 `cmd/shadcn-templ/commands/bundle.go`: a `bundle` command with `--cwd`, `--silent` and `--watch`, in the shape of `add.go`. Without `--watch` it builds once and reports the written path; with it, it rebuilds on create, write and remove of any `*/*.js` under the components directory, debounced 100ms, one log line per rebuild. Dispatch it from the `switch` in `main.go` and document it in the help text next to `add`. `add.go` calls `UpdateScripts` after `UpdateFiles` when `result.HasJS()`, before the CSS step; the existing "Component scripts installed" line becomes one that names the written file and, when the `scripts` field had to be defaulted, says the file needs serving. `Taskfile.yml` in this repo and `cmd/shadcn-templ/templates/templ-app/Taskfile.yml` gain a `scripts-watch` task running `shadcn-templ bundle --watch` and list it in the `task --parallel` line next to `tailwind-watch`.
 
@@ -120,5 +120,13 @@ Implemented configuration defaults/resolution, init persistence, schema, determi
 
 Verified against a dump taken from the original production handler before deleting it: exactly 555,497 bytes, hash `d973fedcd37cd54a`. `go build ./...` and CLI tests pass. Building after deleting the ignored asset restores the identical file. The Go manifest remains committed; the JS asset is ignored per the updated plan.
 
+
+### Task 2
+
+Added the bundle command/flags, 100ms fsnotify watcher, add integration and both Taskfiles. The repo task uses `go run ./cmd/shadcn-templ` to use this checkout's implementation. Promoted the already pinned fsnotify dependency to direct.
+
+CLI tests pass. The watcher test covers creating a component directory plus script, writes, renames, removals and shutdown. Ran the normal Taskfile watchers; their templ watcher updated the generated Go files. Its browser proxy was blocked by sandbox port permissions, so subsequent HTTP checks used a dedicated production process and watcher behavior used filesystem integration tests. No direct templ generation or minified-asset rebuild was run.
+
+Decision clarification: the hashed-name decision wins over the stale plain `shadcn-templ.js` wording in Tasks 2/4. Add also rebuilds when the tree includes the manifest, even when JS bytes were skipped: otherwise repeated `add --overwrite` could replace the local URL with the registry's hash. This case has an integration regression check.
 
 ## Planner review

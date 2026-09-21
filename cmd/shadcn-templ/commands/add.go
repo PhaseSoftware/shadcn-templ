@@ -141,6 +141,27 @@ func addComponents(components []string, config *utils.Config, registryURL string
 		return err
 	}
 
+	// A registry manifest contains the registry's URL and hash, not this project's.
+	// Always replace it with a locally built manifest, including on repeated adds.
+	needsBundle := result.HasJS()
+	for _, file := range tree.Files {
+		if file.Path == "components/scripts_bundle.go" {
+			needsBundle = true
+			break
+		}
+	}
+	if needsBundle {
+		defaulted := config.ScriptsDefaulted
+		bundlePath, _, err := updaters.UpdateScripts(config)
+		if err != nil {
+			return err
+		}
+		logf(options.Silent, "Bundle: %s. Render @%s.Scripts() once in your layout <head>.\n", bundlePath, path.Base(config.Aliases.Components))
+		if defaulted {
+			logf(options.Silent, "Serve %s at %s.\n", config.Scripts.Dir, config.Scripts.Path)
+		}
+	}
+
 	// CSS last, so a file watcher rebuild sees the finished component files.
 	overwriteCssVars := options.OverwriteCssVars || tree.HasThemeItem
 	if !tree.CSSVars.Empty() || tree.CSS.Len() > 0 {
@@ -160,11 +181,6 @@ func addComponents(components []string, config *utils.Config, registryURL string
 	}
 
 	printFontNote(tree.FontDependencies, options.Silent)
-
-	if result.HasJS() {
-		pkg := path.Base(config.Aliases.Components)
-		logf(options.Silent, "Component scripts installed. Render @%s.Scripts() once in your layout <head> and mount %s.ScriptsHandler().\n", pkg, pkg)
-	}
 
 	if tree.Docs != "" {
 		logf(options.Silent, "%s", tree.Docs)

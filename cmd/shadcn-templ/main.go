@@ -54,6 +54,7 @@ const usage = `shadcn-templ - add components and dependencies to your project
 Usage:
   shadcn-templ init [name] [--template <templ>] [--preset <code|url|name>] [--base-color <color>] [--css <path>] [--force] [--silent] [--registry <url>]
   shadcn-templ add <components...|url> [--all] [--overwrite] [--path <path>] [--silent] [--registry <url>]
+  shadcn-templ bundle [--cwd <path>] [--silent] [--watch]
   shadcn-templ apply <preset> [--only theme|font] [--yes] [--silent] [--registry <url>]
   shadcn-templ preset decode <code> [--json]
   shadcn-templ preset resolve [--json]
@@ -109,6 +110,17 @@ func main() {
 		var components []string
 		if components, err = parseFlags(fs, args[1:]); err == nil {
 			err = commands.RunAdd(components, opts)
+		}
+	case "bundle":
+		var opts commands.BundleOptions
+		fs := commands.NewBundleFlagSet(&opts)
+		var rest []string
+		if rest, err = parseFlags(fs, args[1:]); err == nil {
+			if len(rest) != 0 {
+				err = fmt.Errorf("bundle takes no positional arguments")
+			} else {
+				err = commands.RunBundle(opts)
+			}
 		}
 	case "apply":
 		var opts commands.ApplyOptions

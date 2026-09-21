@@ -6,6 +6,7 @@ require (
 	github.com/Oudwins/tailwind-merge-go v0.2.2
 	github.com/a-h/templ v0.3.1001
 	github.com/fogleman/gg v1.3.0
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/joho/godotenv v1.5.1
 	github.com/tdewolff/parse/v2 v2.8.16
 	github.com/yuin/goldmark v1.7.13
@@ -21,7 +22,6 @@ require (
 	github.com/cli/browser v1.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fatih/color v1.18.0 // indirect
-	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
