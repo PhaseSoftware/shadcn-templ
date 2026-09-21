@@ -108,4 +108,34 @@ Serve assets/js at /assets/js.
 
 The serving hint occurs once, the persisted config and regenerated bundle/hash/manifest assertions pass, and the scratch `go build ./...` passes. `go test ./cmd/shadcn-templ/...` and `git diff --check` pass. The review should include the two CLI files changed to repair the failed migration expectation.
 
+### Task 3 draft (Codex, 2026-09-21)
+
+Format checked with `gh release view v2.0.0-beta.9 --json body`. Drafted from the component, accessibility, script-bundle, scroll-lock and Escape decisions. This independent task is committed before task 2's verification so the release candidate already includes the proposed notes. The task-3 checkbox remains open: Planner acceptance and Axel's tag/publication are outside the Executor's authority.
+
+Migration clarification: upgrading the Go module alone does not update an installed CLI binary or copied scripts. The breaking bullet therefore includes the CLI upgrade and the documented removal/replacement of the old runtime handler, in addition to the requested bundle build and serving instructions.
+
+Proposed release body:
+
+```markdown
+### Breaking Changes
+
+- Component JavaScript is now bundled at build time. Upgrade the module with `go get github.com/axadrn/shadcn-templ/v2@v2.0.0-beta.10` and the CLI with `go install github.com/axadrn/shadcn-templ/v2/cmd/shadcn-templ@v2.0.0-beta.10`. Remove the old `components/scripts.go`, `components/embed.go` and `/components/{bundle}` route; update the script tag with `shadcn-templ add scripts --overwrite`, then run `shadcn-templ bundle`. Serve `assets/js` at `/assets/js` and render `components.Scripts()` once in the layout. Run the bundle command before deployment builds; use `bundle --watch` during development. See the [JavaScript migration guide](https://shadcn-templ.com/docs/installation#javascript).
+
+### Minor Changes
+
+- Charts support explicit numeric-axis ticks and domains, `AllowDataOverflow`, numeric-axis `TickCount`, and Go `TickFormatter` labels. Line and area gaps, animated dashed lines, per-row `DotProps.Show`, hidden series and additional curve constants are supported.
+- The mobile sidebar preserves its open state across viewport changes, removes its modal effects on desktop, and reopens when returning to mobile. `tui.sidebar.openMobile()` now reports that state correctly.
+- Improved ARIA relationships, tab navigation, menu keyboard opening and focus handling across tabs, accordion, menus, popover, select, combobox, buttons and toggles.
+- Modal components share one reference-counted scroll lock, so DOM updates and closing an inner popup no longer unlock an open outer modal. Narrow touch-opened menus and selects allow background scrolling.
+- Escape is handled by the focused inner popup before outer layers. Closing a dropdown inside a sheet keeps the sheet open; nested drawers close from inside out, and submenu Escape closes the menu tree.
+
+### Patch Changes
+
+- Fixed clipped dropdown submenus so their items receive pointer interaction again.
+- Fixed popup focus during opening transitions in Chromium and WebKit.
+- Preserved trigger IDs supplied through button attributes, keeping popup labels connected to their triggers.
+- Migrated missing script-bundle configuration even when adding a template-only component such as Button.
+- Scaffold assets use production serving by default; development serving requires an explicit development flag.
+```
+
 ## Planner review
