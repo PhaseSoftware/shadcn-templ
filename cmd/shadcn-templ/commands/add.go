@@ -143,7 +143,9 @@ func addComponents(components []string, config *utils.Config, registryURL string
 
 	// A registry manifest contains the registry's URL and hash, not this project's.
 	// Always replace it with a locally built manifest, including on repeated adds.
-	needsBundle := result.HasJS()
+	// Migrating an older config must also bundle its already installed scripts,
+	// even when the component being added contains only templates.
+	needsBundle := result.HasJS() || config.ScriptsDefaulted
 	for _, file := range tree.Files {
 		if file.Path == "components/scripts_bundle.go" {
 			needsBundle = true

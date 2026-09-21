@@ -28,7 +28,7 @@ Release mechanics: no version constant in the code, no changelog file to maintai
 
 ### 1. Migration smoke test of the CLI
 
-- [ ] Done
+- [x] Done
 
 Blocked until `plans/scroll-lock.md` is done. In a scratch directory outside the repo (`tmp/release-beta-10/` is fine, gitignored): `shadcn-templ init` built from `main`, `add dialog sidebar dropdown-menu`, check that `components.json` carries the `scripts` field, that `assets/js/shadcn-templ-<hash>.js` exists and contains `components/baseui/scroll_lock.js`, that `components/scripts_bundle.go` names that hash, that `go build ./...` in the scratch project passes, and that a page rendering `scripts.Scripts()` links the file. Then simulate a beta.9 project: remove the `scripts` field and the bundle, run `add button`, confirm the field is written back and the bundle rebuilt with the one printed line from scripts-611 task 2.
 
@@ -57,5 +57,55 @@ Done when: the Planner accepts the text in the review; Axel tags `v2.0.0-beta.10
 Checks: `gh release view v2.0.0-beta.9 --json body` as the format reference.
 
 ## Executor log
+
+### Task 1 (Codex, 2026-09-21)
+
+Fresh and simulated-beta.9 flows pass against the local registry serving main, including the unshipped ScrollLocker and Escape fixes. Scratch project: `/tmp/release-beta-10-smoke/templ-app`. Logs: `tmp/release-beta-10/{init,add,migration,migration-fixed,cli-tests}.log`.
+
+Commands run from the repository unless a working directory is given:
+
+```sh
+go build -o /tmp/shadcn-templ-beta10 ./cmd/shadcn-templ
+mkdir -p /tmp/release-beta-10-smoke
+/tmp/shadcn-templ-beta10 init -t templ --cwd /tmp/release-beta-10-smoke --registry http://localhost:8090
+/tmp/shadcn-templ-beta10 add dialog sidebar dropdown-menu --cwd /tmp/release-beta-10-smoke/templ-app --registry http://localhost:8090
+# In /tmp/release-beta-10-smoke/templ-app:
+go mod tidy
+PATH="/tmp/release-beta-10-bin:$PATH" task dev PORT=8101
+go mod tidy
+go build ./...
+```
+
+`/tmp/release-beta-10-bin/shadcn-templ` points to the freshly built CLI. Only the scratch Taskfile's templ proxy port was changed to 7332, to keep the repo's 7331 proxy running. The scaffold's nested task selected its free app port 8091 despite the outer PORT=8101 argument; the page was checked on the actual reported port. The normal task-dev watcher generated the scratch `_templ.go` files; no manual generation/minification. The scratch dev processes were then stopped before the legacy simulation, so a watcher could not mask a missing bundle.
+
+Fresh output:
+
+```text
+Project initialization completed.
+Bundle: /tmp/release-beta-10-smoke/templ-app/assets/js/shadcn-templ-e72b6a40bbb6a67d.js. Render @components.Scripts() once in your layout <head>.
+```
+
+Assertions pass: config scripts is `{dir: assets/js, path: /assets/js}`; exactly one hashed bundle exists; it contains `// components/baseui/scroll_lock.js`; its SHA-256 prefix matches the name; `components/scripts_bundle.go` references that name; `go build ./...` passes. `curl http://localhost:8091/` renders `<script defer nonce="" src="/assets/js/shadcn-templ-e72b6a40bbb6a67d.js"></script>` and the asset returns HTTP 200. The actual package is components, not the plan's illustrative scripts.Scripts spelling.
+
+For the legacy simulation a Python script removed only the scripts property from the scratch components.json and deleted its hashed JS bundle. Then:
+
+```sh
+/tmp/shadcn-templ-beta10 add button --cwd /tmp/release-beta-10-smoke/templ-app --registry http://localhost:8090
+```
+
+**Release-blocking defect found and fixed within this task:** on the initial implementation the command skipped the existing button template, wrote no scripts config and rebuilt no bundle. `add` only checked the newly added files for JS. The minimal fix treats a defaulted scripts config as requiring a bundle build as well, so existing scripts migrate even on a template-only add. Added a regression case using the non-default components alias; it failed before the fix (`scripts config was not migrated: <nil>`, log `migration-regression-before.log`) and passes after it. No component behavior changed.
+
+Rebuilt the CLI with the same build command and repeated the same add command on that unmigrated scratch project. Output:
+
+```text
+Checking registry.
+Updating files.
+Skipped 1 file: (use --overwrite to overwrite)
+  - components/button/button.templ
+Bundle: /tmp/release-beta-10-smoke/templ-app/assets/js/shadcn-templ-e72b6a40bbb6a67d.js. Render @components.Scripts() once in your layout <head>.
+Serve assets/js at /assets/js.
+```
+
+The serving hint occurs once, the persisted config and regenerated bundle/hash/manifest assertions pass, and the scratch `go build ./...` passes. `go test ./cmd/shadcn-templ/...` and `git diff --check` pass. The review should include the two CLI files changed to repair the failed migration expectation.
 
 ## Planner review

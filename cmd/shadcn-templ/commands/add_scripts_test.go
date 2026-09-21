@@ -103,6 +103,38 @@ func TestAddJavaScriptComponentBuildsBundleAtComponentsAlias(t *testing.T) {
 	assertFileContains("internal/design/dialog/dialog.js", "(() =>")
 	assertFileContains("internal/shared/shadcn-templ.go", "package shared")
 
+	t.Run("template-only add migrates existing scripts", func(t *testing.T) {
+		raw, err := utils.GetRawConfig(cwd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw.Scripts = nil
+		if err := utils.WriteConfig(cwd, raw); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Remove(bundles[0]); err != nil {
+			t.Fatal(err)
+		}
+		if err := RunAdd([]string{"button"}, AddOptions{Cwd: cwd, Silent: true, Registry: server.URL}); err != nil {
+			t.Fatal(err)
+		}
+		raw, err = utils.GetRawConfig(cwd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if raw.Scripts == nil || *raw.Scripts != *utils.DefaultScripts() {
+			t.Fatalf("scripts config was not migrated: %+v", raw.Scripts)
+		}
+		data, err := os.ReadFile(bundles[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(data), "// components/dialog/dialog.js") {
+			t.Fatal("migration bundle misses previously installed dialog")
+		}
+		assertFileContains("internal/design/scripts_bundle.go", filepath.Base(bundles[0]))
+	})
+
 	scaffold := filepath.Join(t.TempDir(), "scaffold")
 	if err := RunInit(InitOptions{Cwd: filepath.Dir(scaffold), Template: "templ", ProjectName: "scaffold", Silent: true, Registry: server.URL}); err != nil {
 		t.Fatal(err)
