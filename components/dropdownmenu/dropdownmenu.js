@@ -83,13 +83,19 @@
   // as long as its SSR declaration site (_tuiPortalOwner) stays in the
   // document. Trigger-presence heuristics judged mid-swap moments wrongly -
   // multi-phase swap layers briefly disconnect the new triggers.
-  function portal(content) {
+  function removeOrphanedContents(content) {
     document.querySelectorAll("body > [data-tui-dropdownmenu-content]").forEach((c) => {
       if (c !== content && c._tuiPortalOwner && !c._tuiPortalOwner.isConnected) {
         stopAutoPositioning(c);
+        c._tuiReleaseScroll?.();
+        c._tuiReleaseScroll = null;
         c.remove();
       }
     });
+  }
+
+  function portal(content) {
+    removeOrphanedContents(content);
     if (content.parentElement !== document.body) {
       if (!content._tuiPortalOwner) content._tuiPortalOwner = content.parentElement;
       document.body.appendChild(content);
@@ -228,23 +234,6 @@
 
   // ----- open / close --------------------------------------------------------
 
-  // Base UI menus are modal: the background scroll is locked while open,
-  // with the body padded by the scrollbar width so the page does not shift.
-  function lockScroll() {
-    if (document.body.hasAttribute("data-tui-scroll-locked")) return;
-    const scrollbar = window.innerWidth - document.documentElement.clientWidth;
-    document.body.setAttribute("data-tui-scroll-locked", "");
-    document.body.style.overflow = "hidden";
-    if (scrollbar > 0) document.body.style.paddingRight = scrollbar + "px";
-  }
-
-  function unlockScroll() {
-    if (anyOpen()) return;
-    document.body.removeAttribute("data-tui-scroll-locked");
-    document.body.style.overflow = "";
-    document.body.style.paddingRight = "";
-  }
-
   // focusOn: "first" or "last" lands focus on that item once the menu is in
   // place, anything falsy focuses the popup. `true` still means "first".
   function open(content, trigger, focusOn) {
@@ -252,8 +241,8 @@
       if (c !== content) close(c);
     });
     clearTimeout(content._tuiHide);
+    content._tuiOpenMethod = trigger._tuiOpenMethod || "programmatic";
     portal(content);
-    lockScroll();
     // z-index portal like shadcn (no native top layer); re-append
     // keeps paint order = open order.
     document.body.appendChild(content);
@@ -271,7 +260,12 @@
       void content.offsetWidth;
       content.style.transitionProperty = "";
       if (popup) popup.style.transitionProperty = "";
-      if (content.hidden) return;
+      if (content.hidden || !content.isConnected) return;
+      // useAnchoredPopupScrollLock measures the positioned popup for touch opens.
+      content._tuiReleaseScroll?.();
+      content._tuiReleaseScroll = window.tui.scrollLock.anchoredPopup(
+        true, content._tuiOpenMethod === "touch", content, trigger,
+      );
       setState(content, "open");
       startTransition(content);
       trigger.setAttribute("aria-expanded", "true");
@@ -313,7 +307,8 @@
         setTransitionAttribute(content, "data-ending-style", false);
       }
     }, EXIT_MS);
-    unlockScroll();
+    content._tuiReleaseScroll?.();
+    content._tuiReleaseScroll = null;
   }
 
   function closeAll(refocusTrigger) {
@@ -523,6 +518,8 @@
         const stale = document.getElementById(content.id);
         if (stale) {
           stopAutoPositioning(stale);
+          stale._tuiReleaseScroll?.();
+          stale._tuiReleaseScroll = null;
           stale.remove();
         }
         content._tuiPortalOwner = tpl.parentElement;
@@ -534,6 +531,7 @@
 
   function init() {
     liftTemplates();
+    removeOrphanedContents();
     document.querySelectorAll("[data-tui-dropdownmenu-trigger]").forEach((trigger) => {
       const content = contentFor(trigger);
       if (!content) return;
@@ -588,6 +586,7 @@
     e.stopImmediatePropagation();
     // Through requestOpenChange, not open, so a controlled menu still gets to
     // veto the open and the change event still fires.
+    trigger._tuiOpenMethod = "keyboard";
     requestOpenChange(content, true, focusOn);
   });
 
@@ -595,6 +594,7 @@
     if (e.button !== 0 || !(e.target instanceof Element)) return;
     const trigger = e.target.closest("[data-tui-dropdownmenu-trigger]");
     if (trigger) {
+      trigger._tuiOpenMethod = e.pointerType;
       if (!trigger.disabled) toggle(trigger, false);
       return;
     }
@@ -607,7 +607,10 @@
     if (trigger) {
       // Keyboard activation only (Enter/Space fire a detail-0 click without
       // a preceding pointerdown); pointer presses are handled on pointerdown.
-      if (e.detail === 0 && !trigger.disabled) toggle(trigger, true);
+      if (e.detail === 0 && !trigger.disabled) {
+        trigger._tuiOpenMethod = "keyboard";
+        toggle(trigger, true);
+      }
       return;
     }
 

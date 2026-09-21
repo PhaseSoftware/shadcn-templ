@@ -120,13 +120,19 @@
   // as long as its SSR declaration site (_tuiPortalOwner) stays in the
   // document. Trigger-presence heuristics judged mid-swap moments wrongly -
   // multi-phase swap layers briefly disconnect the new triggers.
-  function portal(content) {
+  function removeOrphanedContents(content) {
     document.querySelectorAll("body > [data-tui-select-content]").forEach((c) => {
       if (c !== content && c._tuiPortalOwner && !c._tuiPortalOwner.isConnected) {
         stopAutoPositioning(c);
+        c._tuiReleaseScroll?.();
+        c._tuiReleaseScroll = null;
         c.remove();
       }
     });
+  }
+
+  function portal(content) {
+    removeOrphanedContents(content);
     if (content.parentElement !== document.body) {
       if (!content._tuiPortalOwner) content._tuiPortalOwner = content.parentElement;
       document.body.appendChild(content);
@@ -492,23 +498,6 @@
 
   // ----- open / close -------------------------------------------------------
 
-  // The select is modal (Base UI default): the background scroll is locked
-  // while open, with the body padded by the scrollbar width so the page
-  // does not shift.
-  function lockScroll() {
-    if (document.body.hasAttribute("data-tui-scroll-locked")) return;
-    const scrollbar = window.innerWidth - document.documentElement.clientWidth;
-    document.body.setAttribute("data-tui-scroll-locked", "");
-    document.body.style.overflow = "hidden";
-    if (scrollbar > 0) document.body.style.paddingRight = scrollbar + "px";
-  }
-  function unlockScroll() {
-    if ([...allContents()].some(isOpen)) return;
-    document.body.removeAttribute("data-tui-scroll-locked");
-    document.body.style.overflow = "";
-    document.body.style.paddingRight = "";
-  }
-
   function open(content, trigger, openMethod) {
     allContents().forEach((c) => {
       if (c !== content) close(c);
@@ -531,7 +520,6 @@
       content._tuiSelection.allowUnselectedMouseUp = true;
     }, SELECTED_DELAY);
     portal(content);
-    lockScroll(); // Base UI's select is modal by default: no page scroll while open
     // z-index portal like shadcn (no native top layer); re-append
     // keeps paint order = open order.
     document.body.appendChild(content);
@@ -554,7 +542,12 @@
         void popup.offsetWidth;
         popup.style.transitionProperty = "";
       }
-      if (content.hidden) return;
+      if (content.hidden || !content.isConnected) return;
+      // useAnchoredPopupScrollLock measures the positioned popup for touch opens.
+      content._tuiReleaseScroll?.();
+      content._tuiReleaseScroll = window.tui.scrollLock.anchoredPopup(
+        true, content._tuiOpenMethod === "touch", content, trigger,
+      );
       setState(content, "open");
       startTransition(content);
       trigger.setAttribute("aria-expanded", "true");
@@ -583,7 +576,8 @@
     setTransitionAttribute(content, "data-starting-style", false);
     setState(content, "closed");
     setTransitionAttribute(content, "data-ending-style", true);
-    unlockScroll();
+    content._tuiReleaseScroll?.();
+    content._tuiReleaseScroll = null;
     const trigger = triggerFor(content);
     if (trigger) {
       trigger.setAttribute("aria-expanded", "false");
@@ -686,6 +680,8 @@
         const stale = document.getElementById(content.id);
         if (stale) {
           stopAutoPositioning(stale);
+          stale._tuiReleaseScroll?.();
+          stale._tuiReleaseScroll = null;
           stale.remove();
         }
         content._tuiPortalOwner = tpl.parentElement;
@@ -697,6 +693,7 @@
 
   function init() {
     liftTemplates();
+    removeOrphanedContents();
     document.querySelectorAll("[data-tui-select-trigger]").forEach((trigger) => {
       const content = contentFor(trigger);
       if (!content) return;

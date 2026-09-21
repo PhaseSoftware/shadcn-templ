@@ -66,10 +66,18 @@
   // as long as its SSR declaration site (_tuiPortalOwner) stays in the
   // document. Trigger-presence heuristics judged mid-swap moments wrongly -
   // multi-phase swap layers briefly disconnect the new triggers.
-  function portal(content) {
+  function removeOrphanedContents(content) {
     document.querySelectorAll("body > [data-tui-contextmenu-content]").forEach((c) => {
-      if (c !== content && c._tuiPortalOwner && !c._tuiPortalOwner.isConnected) c.remove();
+      if (c !== content && c._tuiPortalOwner && !c._tuiPortalOwner.isConnected) {
+        c._tuiReleaseScroll?.();
+        c._tuiReleaseScroll = null;
+        c.remove();
+      }
     });
+  }
+
+  function portal(content) {
+    removeOrphanedContents(content);
     if (content.parentElement !== document.body) {
       if (!content._tuiPortalOwner) content._tuiPortalOwner = content.parentElement;
       document.body.appendChild(content);
@@ -182,31 +190,13 @@
 
   // ----- open / close --------------------------------------------------------
 
-  // Base UI menus are modal: the background scroll is locked while open,
-  // with the body padded by the scrollbar width so the page does not shift.
-  function lockScroll() {
-    if (document.body.hasAttribute("data-tui-scroll-locked")) return;
-    const scrollbar = window.innerWidth - document.documentElement.clientWidth;
-    document.body.setAttribute("data-tui-scroll-locked", "");
-    document.body.style.overflow = "hidden";
-    if (scrollbar > 0) document.body.style.paddingRight = scrollbar + "px";
-  }
-
-  function unlockScroll() {
-    if (anyOpen()) return;
-    document.body.removeAttribute("data-tui-scroll-locked");
-    document.body.style.overflow = "";
-    document.body.style.paddingRight = "";
-  }
-
-  function openAt(content, x, y) {
+  function openAt(content, x, y, touchOpen = false) {
     const alreadyOpen = content.hasAttribute("data-open");
     allContents().forEach((c) => {
     if (c !== content) requestOpenChange(c, false);
     });
     clearTimeout(content._tuiHide);
     portal(content);
-    lockScroll();
     // z-index portal like shadcn (no native top layer); re-append
     // keeps paint order = open order.
     document.body.appendChild(content);
@@ -215,7 +205,13 @@
     if (alreadyOpen) {
       // Right-click somewhere else while open: move over to the new spot.
       content.querySelectorAll("[data-tui-contextmenu-sub]").forEach(closeSubNow);
-      positionMenu(content, x, y);
+      positionMenu(content, x, y).then(() => {
+        if (!content.isConnected || !content.hasAttribute("data-open")) return;
+        content._tuiReleaseScroll?.();
+        content._tuiReleaseScroll = window.tui.scrollLock.anchoredPopup(
+          true, touchOpen, content, triggerFor(content),
+        );
+      });
       return;
     }
 
@@ -223,7 +219,7 @@
     // at the cursor.
     content.style.visibility = "hidden";
     positionMenu(content, x, y).then(() => {
-      if (content.hidden) return; // closed meanwhile
+      if (content.hidden || !content.isConnected) return; // closed or removed meanwhile
       // duration-100 transitions `all`; a visibility transition would
       // freeze at hidden in background tabs - flip suppressed.
       const popup = popupFor(content);
@@ -233,6 +229,11 @@
       void content.offsetWidth;
       content.style.transitionProperty = "";
       if (popup) popup.style.transitionProperty = "";
+      // useAnchoredPopupScrollLock: a native touch context menu follows the touch rule.
+      content._tuiReleaseScroll?.();
+      content._tuiReleaseScroll = window.tui.scrollLock.anchoredPopup(
+        true, touchOpen, content, triggerFor(content),
+      );
       setState(content, "open");
       if (popup) {
         syncSubState(popup);
@@ -251,14 +252,15 @@
         content.hidden = true;
       }
     }, EXIT_MS);
-    unlockScroll();
+    content._tuiReleaseScroll?.();
+    content._tuiReleaseScroll = null;
   }
 
   function closeAll() {
   allContents().forEach((content) => requestOpenChange(content, false));
   }
 
-  function requestOpenChange(content, nextOpen, x, y) {
+  function requestOpenChange(content, nextOpen, x, y, touchOpen = false) {
   const trigger = triggerFor(content);
   const change = new CustomEvent("contextmenu-open-change", {
     bubbles: true,
@@ -267,7 +269,7 @@
   });
   const accepted = (trigger || content).dispatchEvent(change);
   if (!accepted || content.hasAttribute("data-tui-contextmenu-controlled")) return false;
-  if (nextOpen) openAt(content, x, y);
+  if (nextOpen) openAt(content, x, y, touchOpen);
   else close(content);
   return true;
   }
@@ -443,7 +445,11 @@
       const content = tpl.content.querySelector("[data-tui-contextmenu-content]");
       if (content) {
         const stale = document.getElementById(content.id);
-        if (stale) stale.remove();
+        if (stale) {
+          stale._tuiReleaseScroll?.();
+          stale._tuiReleaseScroll = null;
+          stale.remove();
+        }
         content._tuiPortalOwner = tpl.parentElement;
         document.body.appendChild(content);
       }
@@ -453,6 +459,7 @@
 
   function init() {
     liftTemplates();
+    removeOrphanedContents();
     document.querySelectorAll("[data-tui-contextmenu-trigger]").forEach((trigger) => {
       const content = contentFor(trigger);
     if (content) {
@@ -486,12 +493,15 @@
     const content = contentFor(trigger);
     if (!content) return;
     e.preventDefault();
-  requestOpenChange(content, true, e.clientX, e.clientY);
+  requestOpenChange(content, true, e.clientX, e.clientY,
+    (e.pointerType || trigger._tuiOpenMethod) === "touch");
   });
 
   // Dismiss on PRESS outside, like Base UI.
   document.addEventListener("pointerdown", (e) => {
     if (!(e.target instanceof Element)) return;
+    const trigger = e.target.closest("[data-tui-contextmenu-trigger]");
+    if (trigger) trigger._tuiOpenMethod = e.pointerType;
     if (e.button !== 0) return;
     if (!e.target.closest("[data-tui-contextmenu-content]")) closeAll();
   });

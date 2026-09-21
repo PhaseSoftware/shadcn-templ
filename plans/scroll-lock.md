@@ -90,7 +90,7 @@ Checks: `go test ./internal/registryapi/`, `git diff --check`, the manual `acqui
 
 ### 3. Dialog and drawer hold their own release
 
-- [ ] Done
+- [x] Done
 
 `dialog.js` and `drawer.js` per Decisions: acquire in open, release in close and destroy, copies and observer calls deleted, `anyModalOpen` deleted. The dialog's `MutationObserver` still calls `init()`; the drawer's still calls `init()` and `syncInert()`.
 
@@ -100,7 +100,7 @@ Checks: `node tmp/scroll-lock/probe.mjs chromium`, same for webkit, `node tmp/si
 
 ### 4. Menus and select through the anchored popup rule
 
-- [ ] Done
+- [x] Done
 
 `dropdownmenu.js` records `trigger._tuiOpenMethod` on `pointerdown` and `"keyboard"` on the detail-0 click, copies it to the content on open like the select does; `contextmenu.js` passes its long-press state; `select.js` passes `content._tuiOpenMethod === "touch"`. All three acquire in open and release in close, copies and guards deleted.
 
@@ -136,5 +136,22 @@ Added `components/baseui/scroll_lock.js`: the supplied useScrollLock implementat
 Dialog state and drawer nodes now hold and clear their own release function on close and retirement. Removed both lock copies and observer unlock calls. Drawer replacement through a fresh portal template also releases the stale drawer, in addition to owner removal, because a retained release must cover both existing unmount paths. No focus, opening/closing, or aria-hidden semantics changed.
 
 `go build ./...`, syntax checks and `git diff --check` pass. The sidebar probe, updated only in its gitignored computed-lock reader, passes in Chromium. Scroll-lock probe A, C, D and E pass in both engines; B/G keep the lock on menu open but still lose it on menu close. F now exposes the old unconditional touch lock. These four failures per engine are dependencies on task 4, not changes to the planned dialog/drawer behavior. Consequently the task-3 checkbox stays open until the integrated task-4 run passes (the task-3 done-when line cannot hold while the remaining three scripts still own lock copies). Logs: `tmp/scroll-lock/task3-{chromium,webkit}.log` and `task3-sidebar-chromium.log`. Watcher-generated bundle included.
+
+### Task 4 and integrated completion (Codex, 2026-09-21)
+
+Dropdown menu, context menu and select now acquire through anchoredPopup after positioning and release on close. Dropdown records pointer opens plus both keyboard opening routes; select uses its existing open method. Context menu classifies its existing native contextmenu event using the event pointer type or preceding trigger press, since the planned custom long-press path does not exist; no new gesture implementation was added. Repositioning an already open context menu refreshes its lock without double-acquiring. `anyOpen` remains in both menu scripts because keyboard navigation still uses it; only the obsolete lock guard callers were removed.
+
+The retained releases are also cleared in the existing stale-template and disconnected-owner removal paths. Extracted each anchored popup's existing orphan sweep so init runs it even when the last trigger was removed; previously that sweep only ran from portal on another surviving trigger. This is necessary for a refcount owner not to leak after its final declaration site disappears. Async positioning callbacks do not acquire for already disconnected contents. No templ, markup, focus, aria-hidden or dismissal logic changed. The pre-existing double-dismiss on Escape remains separate as documented in task 1.
+
+Final checks:
+
+- `node tmp/scroll-lock/probe.mjs chromium` and `webkit`: exit 0, zero failed expectations for all corrected A-G scenarios. Logs: `tmp/scroll-lock/fixed-{chromium,webkit}.log`.
+- `node tmp/scroll-lock/lifecycle.mjs chromium` and `webkit`: drawer, dropdown, context menu and select release on owner removal even after every other trigger of that kind is removed.
+- `node tmp/scroll-lock/shared.mjs chromium` and `webkit`: direct acquisition, multi-owner refcount, foreign-lock preservation/takeover, immediate release, and touch popups both narrower than and at the viewport-minus-20px threshold pass.
+- `node tmp/sidebar-613/probe.mjs chromium` and `webkit`: zero failed expectations with the computed lock reader; logs `tmp/scroll-lock/fixed-sidebar-{chromium,webkit}.log`.
+- `go test ./internal/registryapi/`, `go build ./...`, JS syntax checks and `git diff --check`: pass.
+- `rg -n 'data-tui-scroll-locked|lockScroll|unlockScroll' components/*/*.js` lists only `components/baseui/scroll_lock.js`.
+
+Task 3's dependent nested-popup checks now pass too, so both remaining task checkboxes are checked. All bundle manifests came from the normal watcher. No manual templ generation or component minification. Real inset-scrollbar / OS window-resize verification remains for the Planner's visible-browser review; headless runs here use overlay scrollbars. `plans/chart-612.md` and `plans/release-beta-10.md` are untouched. Ready for Planner review; plan status remains Planner-owned and release work waits for that review.
 
 ## Planner review
