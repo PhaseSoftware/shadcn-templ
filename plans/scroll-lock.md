@@ -2,7 +2,7 @@
 
 - **Planner**: Claude
 - **Executor**: Codex
-- **Status**: ready
+- **Status**: done
 
 ## Context
 
@@ -155,3 +155,17 @@ Final checks:
 Task 3's dependent nested-popup checks now pass too, so both remaining task checkboxes are checked. All bundle manifests came from the normal watcher. No manual templ generation or component minification. Real inset-scrollbar / OS window-resize verification remains for the Planner's visible-browser review; headless runs here use overlay scrollbars. `plans/chart-612.md` and `plans/release-beta-10.md` are untouched. Ready for Planner review; plan status remains Planner-owned and release work waits for that review.
 
 ## Planner review
+
+### Review (Claude, 2026-09-21)
+
+Read all four commits (`b42efa81`, `2e2adf40`, `4c47741d`, `eff75b5b`) against the Base UI sources in `tmp/scroll-lock/baseui/` and re-ran every check on `main` at `eff75b5b`.
+
+- **Task 1: accepted, with the Executor's baseline corrections.** The probe reads the lock the way Base UI defines it. The corrections are measurements, not guesses: this machine has overlay scrollbars, so the body padding assertion never had a failing baseline, and `window.scrollBy` is not what `overflow: hidden` blocks, so C asserts a wheel gesture. Both are right.
+- **Task 2: accepted.** `components/baseui/scroll_lock.js` is `useScrollLock.ts` line for line under the source names, with `Timeout`, the `AnimationFrame` scheduler, `isOverflowElement`, the `ios` and `webkit` flags and `anchoredPopupScrollLock` carried in the same file as decided. `data-tui-scroll-locked` sits where `data-base-ui-scroll-locked` sits. Public surface is `acquire` and `anchoredPopup`, nothing else. Registry, five docs pages, bundler comment and `static/llms.txt` per Decisions; the one extra llms line (Resizable) is generator drift the regeneration caught, fine to keep.
+- **Task 3: accepted.** Dialog state and drawer node hold their release; both `MutationObserver`s no longer touch the lock; `anyModalOpen` and both copies are gone. Releasing the stale drawer on template replacement is the second unmount path the plan missed, right to cover.
+- **Task 4: accepted.** Menus and select acquire through `anchoredPopup` after positioning and release on close, on orphan removal and on template replacement. Extracting `removeOrphanedContents` into `init` is a necessary addition: a refcounted owner must release when its last declaration site disappears, and the previous sweep only ran from `portal` on another surviving trigger. The dropdown records pointer, keyboard and programmatic opens; the context menu classifies the native event by pointer type with the preceding press as fallback, correct for Chromium's `PointerEvent` and Safari's `MouseEvent`. Re-acquiring on reposition is a release then acquire, which the locker's 0ms timeouts collapse without a flash, as in Base UI.
+- **Verification by the Planner.** `probe.mjs`, `shared.mjs`, `lifecycle.mjs` and `tmp/sidebar-613/probe.mjs` pass in Chromium and WebKit. An extra run (`tmp/scroll-lock/inset2.mjs`, headless and headed, JS click so Playwright does not scroll the trigger into view): at `scrollY` 300 the dialog opens with the page at 300, the wheel is blocked, `main` keeps its left edge and width, no `paddingRight`, and after Escape every inline style is empty and the page is back at 300. `go build ./...`, `go test ./internal/registryapi/`, `git diff --check` pass; no `lockScroll`, `unlockScroll` or the attribute outside `baseui`.
+- **Not verified in a browser: the inset-scrollbar branch.** This machine renders overlay scrollbars in Chromium and WebKit, headless and headed, and `::-webkit-scrollbar` styling did not change `innerWidth - clientWidth`. So `preventScrollInsetScrollbars` (Windows and Linux with classic scrollbars, the `scrollbar-gutter: stable` path and the fallback) is verified only by reading it against the source and by `shared.mjs`. First Windows or Linux report on a dialog is the thing to watch after the release.
+- **Follow-up, out of scope, confirmed on `main`:** one Escape closes both a dropdown inside the sheet and the sheet (`tmp/scroll-lock/escape.mjs`). Base UI dismisses only the topmost layer. That is a dismiss-stack plan of its own; the Executor was right not to fold it in.
+
+No new tasks. Status done.
