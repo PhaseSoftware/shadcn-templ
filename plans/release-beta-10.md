@@ -38,7 +38,7 @@ Checks: the flows above, `go test ./cmd/shadcn-templ/...`.
 
 ### 2. Full verification on main
 
-- [ ] Done
+- [x] Done
 
 `go build ./...`, `go test ./...`, `git status` clean, `task dev` serves `/docs/components/dialog`, `/docs/components/chart`, `/preview/sidebar-demo` without console errors in Chromium and WebKit (Playwright, `tmp/a11y-600/node_modules`), and the scroll-lock probe and the sidebar-613 probe pass once more on the exact commit to be tagged.
 
@@ -137,5 +137,33 @@ Proposed release body:
 - Migrated missing script-bundle configuration even when adding a template-only component such as Button.
 - Scaffold assets use production serving by default; development serving requires an explicit development flag.
 ```
+
+### Task 2 (Codex, 2026-09-21)
+
+Release candidate: the commit containing this entry, `release-beta-10 2: verify release candidate`, direct child of `d84fb2a45c50633c059e9b3b2248b1c25717aa9c`, retained locally as `release/beta-10-candidate`. The resulting full SHA and post-commit verification results are recorded in `tmp/release-beta-10/verification.json` and the Executor handoff. This identifies the candidate without trying to embed a commit's own hash in its contents. Tag this verified candidate; later Planner review commits are not implicitly verified candidates.
+
+Used a detached clean checkout at `/tmp/release-beta-10-check` because the original workspace contains Axel's unrelated, uncommitted chart Planner review. That review is preserved. Normal `task dev` watchers generated all required files; no manual templ generation or JS minification. The clean checkout's Shiki node_modules symlink reuses the existing local installation and is ignored by git.
+
+The first full suite exposed an outdated corpus count: `TestTransformJavaScriptStyleRegistryCorpus` expected 31 component JS files; the shared ScrollLocker makes 32. Updated only that expectation. The targeted regression and full suite pass with the corrected count. Initial failure: `tmp/release-beta-10/full-tests.log`; successful repeat: `full-tests-fixed.log`.
+
+Final candidate checks (run from the clean checkout, browser scripts from the original workspace):
+
+```sh
+go build ./...
+go test ./...
+git diff --check
+git status --porcelain
+# Served by the checkout's normal task dev, on localhost:8090:
+node tmp/release-beta-10/pages.mjs chromium
+node tmp/scroll-lock/probe.mjs chromium
+node tmp/sidebar-613/probe.mjs chromium
+node tmp/release-beta-10/pages.mjs webkit
+node tmp/scroll-lock/probe.mjs webkit
+node tmp/sidebar-613/probe.mjs webkit
+```
+
+All pass. Each engine loads `/docs/components/dialog`, `/docs/components/chart` and `/preview/sidebar-demo` with HTTP 200, a working hashed bundle and no console/page errors. The scroll-lock and sidebar probes report zero failures in both engines. Post-commit logs use the `final-` prefix under `tmp/release-beta-10/`. The checkout remains clean after watcher generation and verification. The original workspace's development workflow is restored afterward.
+
+No tag, GitHub release or push was performed. Task 3 remains open for Planner acceptance and Axel's publication.
 
 ## Planner review
