@@ -12,7 +12,6 @@ import (
 
 	"github.com/axadrn/shadcn-templ/v2/assets"
 	"github.com/axadrn/shadcn-templ/v2/blocks/dashboard01"
-	"github.com/axadrn/shadcn-templ/v2/components"
 	"github.com/axadrn/shadcn-templ/v2/internal/config"
 	"github.com/axadrn/shadcn-templ/v2/internal/middleware"
 	"github.com/axadrn/shadcn-templ/v2/internal/og"
@@ -54,7 +53,6 @@ func inlineDelivery(next http.Handler) http.Handler {
 		// transformer (create-preview.js toggles the cn-menu-* markers per
 		// picked menuColor), exactly like shadcn's designer.
 		if strings.HasPrefix(r.URL.Path, "/assets/") ||
-			strings.HasPrefix(r.URL.Path, "/components/") ||
 			r.URL.Path == "/create" ||
 			strings.HasPrefix(r.URL.Path, "/create/") {
 			next.ServeHTTP(w, r)
@@ -447,6 +445,8 @@ func SetupAssetsRoutes(mux *http.ServeMux) {
 	assetHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if isDevelopment {
 			w.Header().Set("Cache-Control", "no-store")
+		} else if strings.HasPrefix(strings.TrimPrefix(r.URL.Path, "/"), "js/shadcn-templ-") {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		}
 
 		var fs http.Handler
@@ -460,9 +460,6 @@ func SetupAssetsRoutes(mux *http.ServeMux) {
 	})
 
 	mux.Handle("GET /assets/", http.StripPrefix("/assets/", assetHandler))
-
-	// Component JS bundle
-	mux.Handle("GET /components/{bundle}", components.ScriptsHandler())
 
 	// Per-page open-graph image, the pendant of app/og/route.tsx
 	mux.Handle("GET /og", og.Handler())

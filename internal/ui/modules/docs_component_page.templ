@@ -85,7 +85,7 @@ func componentSourceFiles(name string) []string {
 }
 
 func componentSourceCode(path string) string {
-	content, err := componentsrc.TemplFiles.ReadFile(strings.TrimPrefix(path, "components/"))
+	content, err := componentsrc.SourceFiles.ReadFile(strings.TrimPrefix(path, "components/"))
 	if err != nil {
 		return ""
 	}

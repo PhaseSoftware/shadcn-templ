@@ -84,7 +84,7 @@ Checks: `go test ./components/... ./cmd/shadcn-templ/...`, `diff components/scri
 
 ### 4. The source embed keeps the docs site and the registry alive
 
-- [ ] Done
+- [x] Done
 
 `components/source_embed.go`: `//go:embed all:*` as `SourceFiles`, with a comment naming its two consumers and stating that no registry item lists this file. Repoint `internal/ui/modules/docs_component_page.templ:88` and `internal/registryapi/styleitems.go:105` at `SourceFiles`. The docs site's own layout keeps `@components.Scripts()`; `cmd/docs/main.go:465` loses the `GET /components/{bundle}` route, and `assets/js/shadcn-templ.js` is served by the existing asset routes.
 
@@ -134,5 +134,11 @@ Decision clarification: the hashed-name decision wins over the stale plain `shad
 Removed the runtime handler and component embed from the shipped surface; scripts now render the generated URL with the nonce. Updated the registry, package rewrite fixtures, install tests and repeated-add assertion. A fresh scaffold installation has the two loader files and no legacy handler/embed. The templ source and scaffold twin are identical; generated Go changes came from the normal Taskfile watcher.
 
 `go test ./cmd/shadcn-templ/... ./components` passes. The requested full `./components/...` run has one pre-existing failure in `components/floatingui/positioning_test.go:45`: dropdownmenu contains one `strategy: "absolute"` occurrence, but the test expects two. Neither the test nor the component changed in this work. Task 3's checkbox remains open solely because its full-suite check is not green; implementation and focused checks are complete.
+
+### Task 4
+
+Added repo-only `SourceFiles` and switched the docs source viewer and production registry reader to it. Removed the docs bundle route and obsolete middleware path exception. The asset route now gives the hashed JS one-year immutable caching in production.
+
+`go test ./internal/...` and `go build ./...` pass. Ran the built docs server with `GO_ENV=production` on a dedicated local port: `/docs/components/button` returns 200 with its source path and generated script URL, the button registry endpoint returns non-empty content for every file, and the JS response is byte-identical to the original handler dump with `public, max-age=31536000, immutable`. Stopped the test process afterward.
 
 ## Planner review
