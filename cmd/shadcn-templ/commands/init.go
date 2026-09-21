@@ -129,8 +129,9 @@ func RunInit(opts InitOptions) error {
 	}
 
 	raw := &utils.RawConfig{
-		Schema: utils.SchemaURL,
-		Style:  baseItem.Config.Style,
+		Schema:  utils.SchemaURL,
+		Scripts: utils.DefaultScripts(),
+		Style:   baseItem.Config.Style,
 		Tailwind: utils.Tailwind{
 			CSS:          resolveTailwindCSSPath(cwd, opts.CSS, existing),
 			BaseColor:    baseItem.Config.Tailwind.BaseColor,
@@ -146,7 +147,10 @@ func RunInit(opts InitOptions) error {
 		},
 	}
 	if existing != nil {
-		// Keep the user's aliases on re-init.
+		// Keep the user's paths on re-init.
+		if existing.Scripts != nil {
+			raw.Scripts = existing.Scripts
+		}
 		if existing.Aliases.Components != "" {
 			raw.Aliases.Components = existing.Aliases.Components
 		}
