@@ -129,4 +129,10 @@ CLI tests pass. The watcher test covers creating a component directory plus scri
 
 Decision clarification: the hashed-name decision wins over the stale plain `shadcn-templ.js` wording in Tasks 2/4. Add also rebuilds when the tree includes the manifest, even when JS bytes were skipped: otherwise repeated `add --overwrite` could replace the local URL with the registry's hash. This case has an integration regression check.
 
+### Task 3
+
+Removed the runtime handler and component embed from the shipped surface; scripts now render the generated URL with the nonce. Updated the registry, package rewrite fixtures, install tests and repeated-add assertion. A fresh scaffold installation has the two loader files and no legacy handler/embed. The templ source and scaffold twin are identical; generated Go changes came from the normal Taskfile watcher.
+
+`go test ./cmd/shadcn-templ/... ./components` passes. The requested full `./components/...` run has one pre-existing failure in `components/floatingui/positioning_test.go:45`: dropdownmenu contains one `strategy: "absolute"` occurrence, but the test expects two. Neither the test nor the component changed in this work. Task 3's checkbox remains open solely because its full-suite check is not green; implementation and focused checks are complete.
+
 ## Planner review

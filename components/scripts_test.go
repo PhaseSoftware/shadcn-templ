@@ -1,25 +1,22 @@
 package components
 
 import (
-	"net/http"
-	"net/http/httptest"
+	"bytes"
+	"context"
+	"strings"
 	"testing"
+
+	"github.com/a-h/templ"
 )
 
-func TestScriptsHandlerServesGeneratedHashedPath(t *testing.T) {
-	t.Setenv("GO_ENV", "production")
-
-	mux := http.NewServeMux()
-	mux.Handle("GET /components/{bundle}", ScriptsHandler())
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, scriptsSrc(), nil)
-	mux.ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("GET %s returned %d", scriptsSrc(), recorder.Code)
+func TestScripts(t *testing.T) {
+	var output bytes.Buffer
+	if err := Scripts().Render(templ.WithNonce(context.Background(), "test-nonce"), &output); err != nil {
+		t.Fatal(err)
 	}
-	if recorder.Body.Len() == 0 {
-		t.Fatal("script bundle is empty")
+	for _, want := range []string{`src="` + bundleSrc + `"`, `nonce="test-nonce"`, `<script defer`} {
+		if !strings.Contains(output.String(), want) {
+			t.Errorf("output %q missing %q", output.String(), want)
+		}
 	}
 }

@@ -26,20 +26,20 @@ func TestTransformComponentsRootFilesUsesConfiguredAlias(t *testing.T) {
 	}
 
 	scripts := registry.ItemFile{
-		Path: "components/scripts.go",
+		Path: "components/scripts_bundle.go",
 		Type: "registry:lib",
 		Content: `package components
 
-const developmentComponentsDir = "components"
+const bundleSrc = "/assets/js/shadcn-templ-test.js"
 `,
 	}
 	got := transformContent(scripts, config)
 	for _, want := range []string{
 		"package design",
-		`const developmentComponentsDir = "internal/design"`,
+		`const bundleSrc = "/assets/js/shadcn-templ-test.js"`,
 	} {
 		if !strings.Contains(got, want) {
-			t.Errorf("transformed scripts.go missing %q:\n%s", want, got)
+			t.Errorf("transformed scripts_bundle.go missing %q:\n%s", want, got)
 		}
 	}
 
@@ -65,7 +65,7 @@ const developmentComponentsDir = "components"
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := filepath.Join(componentsDir, "scripts.go"); target != want {
+	if want := filepath.Join(componentsDir, "scripts_bundle.go"); target != want {
 		t.Errorf("scripts target = %q, want %q", target, want)
 	}
 }

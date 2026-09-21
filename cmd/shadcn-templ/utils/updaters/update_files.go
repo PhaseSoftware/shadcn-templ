@@ -185,20 +185,11 @@ func transformContent(file registry.ItemFile, config *utils.Config) string {
 	})
 
 	// Files installed at the components root form the package imported by the
-	// app for Scripts and ScriptsHandler. Keep both its Go package name and its
-	// development source directory aligned with aliases.components.
+	// app for Scripts. Keep its package name aligned with aliases.components.
 	componentsRootFile := isComponentsRootFile(file.Path)
 	if componentsRootFile {
 		if pkg := lastSegment(config.Aliases.Components); pkg != "" && pkg != "components" {
 			content = strings.Replace(content, "package components", "package "+pkg, 1)
-		}
-		if rel, err := filepath.Rel(config.ResolvedPaths.Cwd, config.ResolvedPaths.Components); err == nil {
-			content = strings.Replace(
-				content,
-				`const developmentComponentsDir = "components"`,
-				fmt.Sprintf("const developmentComponentsDir = %q", filepath.ToSlash(rel)),
-				1,
-			)
 		}
 	}
 
