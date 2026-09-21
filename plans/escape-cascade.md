@@ -88,4 +88,10 @@ Checks: `node tmp/escape/probe.mjs chromium`, same for webkit, `node tmp/scroll-
 
 Added gitignored `tmp/escape/probe.mjs` with all eight scenarios, synthetic cancelable Escape dispatched on the active element, a post-load document observer, popup state, focus assertions, and page-error collection. Baselines on unchanged implementation at `1d1ee416` (Scroll-Lock Planner review committed separately): `tmp/escape/baseline-{chromium,webkit}.log`. Both engines exit 1 with 21 failed expectations. A closes menu and sheet together and loses the menu trigger focus; all element-path document-propagation assertions fail. B's nested/outer close order and the close assertions for C-H pass. Most primitives also fail preventDefault today; D correctly reaches document but does not prevent default. No page errors. No implementation changes in this task.
 
+### Task 2 implementation (Codex, 2026-09-21)
+
+Dialog and drawer now install one closeOnEscapeKeyDown function on popup/content, references and document. WeakSets prevent duplicate element bindings. Dialog keeps its IME guard and topmost-open check; drawer keeps hasOpenNested and dismissibility and no longer uses capture, defaultPrevented or the cross-component popup selector. Dialog's requestOpenChange now returns a boolean; drawer already did. Existing controlled/veto semantics are unchanged.
+
+B and C pass every state, focus and propagation check in Chromium and WebKit. The complete probe has 16 remaining baseline failures per engine, all in the not-yet-ported anchored popups or A. A's second (sheet) Escape cannot be tested in that sequence until task 3 prevents the first Escape from closing the sheet. Therefore task 2's checkbox stays open until the integrated run. Logs: `tmp/escape/task2-{chromium,webkit}.log`. No new failures or page errors. `go build ./...`, JS syntax checks and `git diff --check` pass. Watcher-generated bundle reference included.
+
 ## Planner review

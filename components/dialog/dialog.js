@@ -467,7 +467,7 @@
 
   function requestOpenChange(target, nextOpen, trigger) {
     const state = stateOf(target);
-    if (!state || state.open === nextOpen) return;
+    if (!state || state.open === nextOpen) return false;
     const accepted = state.popup.dispatchEvent(
       new CustomEvent("dialog-open-change", {
         bubbles: true,
@@ -475,9 +475,10 @@
         detail: { open: nextOpen },
       }),
     );
-    if (!accepted || state.popup.hasAttribute("data-tui-dialog-controlled")) return;
+    if (!accepted || state.popup.hasAttribute("data-tui-dialog-controlled")) return false;
     if (nextOpen) openDialog(state.popup, trigger);
     else closeDialog(state.popup);
+    return true;
   }
 
   function toggleDialog(target, trigger) {
@@ -533,15 +534,29 @@
     );
   });
 
+  const escapeTargets = new WeakSet();
+  function listenForEscape(element) {
+    if (!element || escapeTargets.has(element)) return;
+    element.addEventListener("keydown", closeOnEscapeKeyDown);
+    escapeTargets.add(element);
+  }
+
+  // useDismiss installs the same handler on the popup, reference and document.
+  function closeOnEscapeKeyDown(event) {
+    if (event.key !== "Escape" || isComposing) return;
+    const top = openStack[openStack.length - 1];
+    const state = event.currentTarget === document
+      ? top
+      : stateOf(dialogFor(event.currentTarget));
+    // A nested open dialog blocks its parent's useDismiss handler.
+    if (!state?.open || state !== top) return;
+    if (requestOpenChange(state.popup, false)) event.preventDefault();
+    event.stopPropagation();
+    return true;
+  }
+
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
-      if (isComposing) return;
-      const state = openStack[openStack.length - 1];
-      if (!state) return;
-      event.preventDefault();
-      requestOpenChange(state.popup, false);
-      return;
-    }
+    if (closeOnEscapeKeyDown(event)) return;
     // FloatingFocusManager: prevent Tab from escaping the modal when the
     // popup has no tabbable elements (the guards would have nothing to
     // focus).
@@ -588,6 +603,7 @@
       finishToken: null,
     };
     dialogs.set(popup, state);
+    listenForEscape(popup);
 
     // A nested dialog renders no backdrop in Base UI (DialogBackdrop's
     // enabled: !nested); the parent's backdrop keeps covering the page.
@@ -694,6 +710,7 @@
 
   function init() {
     liftTemplates();
+    document.querySelectorAll("[data-tui-dialog-trigger]").forEach(listenForEscape);
     document.querySelectorAll("body > [data-tui-dialog-root]").forEach((root) => {
       const popup = root.querySelector("[data-tui-dialog-content]");
       if (!popup) {

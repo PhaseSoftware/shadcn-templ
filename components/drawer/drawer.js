@@ -514,26 +514,28 @@
     }
   }
 
-  // showModal's Escape lives here now. Capture phase: while a floating
-  // popup is visibly open (inside or outside the drawer), its own Escape
-  // handler closes it and the drawer stays.
-  const OPEN_POPUP_SELECTOR = '[data-tui-portal][data-open]:not([hidden]):not(dialog)';
+  const escapeTargets = new WeakSet();
+  function listenForEscape(element) {
+    if (!element || escapeTargets.has(element)) return;
+    element.addEventListener("keydown", closeOnEscapeKeyDown);
+    escapeTargets.add(element);
+  }
 
-  document.addEventListener(
-    "keydown",
-    (e) => {
-      if (e.key !== "Escape" || e.defaultPrevented) return;
-      if (document.querySelector(OPEN_POPUP_SELECTOR)) return;
-      const open = Array.from(
-        document.querySelectorAll("body > dialog[data-tui-drawer-content]"),
-      ).filter((d) => d.open && !d.hasAttribute("data-tui-drawer-disable-dismissible"));
-      // The deepest open drawer dismisses first (a parent with an open
-      // nested drawer stays).
-      const top = open.find((d) => !hasOpenNested(d));
-      if (top) requestOpenChange(top, false);
-    },
-    true,
-  );
+  // useDismiss: the focused popup or reference handles Escape before document.
+  function closeOnEscapeKeyDown(event) {
+    if (event.key !== "Escape") return;
+    const drawer = event.currentTarget === document
+      ? [...document.querySelectorAll("body > dialog[data-tui-drawer-content]")].find(
+        (dialog) => dialog.open && !dialog.hasAttribute("data-tui-drawer-disable-dismissible") && !hasOpenNested(dialog),
+      )
+      : drawerFor(event.currentTarget);
+    if (!drawer?.open || drawer.hasAttribute("data-tui-drawer-disable-dismissible") || hasOpenNested(drawer)) return;
+    if (requestOpenChange(drawer, false)) event.preventDefault();
+    event.stopPropagation();
+    return true;
+  }
+
+  document.addEventListener("keydown", closeOnEscapeKeyDown);
 
   function openDrawer(target) {
     const dialog = getDrawer(target);
@@ -1253,6 +1255,7 @@
   function ensureDrawer(dialog) {
     if (!dialog || dialog.dataset.tuiDrawerInitialized === "true") return dialog;
     dialog.dataset.tuiDrawerInitialized = "true";
+    listenForEscape(dialog);
 
     dialog.addEventListener("cancel", (event) => {
       event.preventDefault();
@@ -1315,6 +1318,7 @@
 
   function init(root = document) {
     liftTemplates();
+    root.querySelectorAll("[data-tui-drawer-trigger]").forEach(listenForEscape);
     // Self-healing modality: recompute the inert siblings on every DOM
     // change, so a swap or a missed close event never leaves stale inert.
     syncInert();
