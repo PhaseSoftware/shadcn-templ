@@ -2,7 +2,7 @@
 
 - **Planner**: Claude
 - **Executor**: Codex
-- **Status**: ready
+- **Status**: done
 
 ## Context
 
@@ -85,3 +85,15 @@ Implemented wrapper-owned `openMobile` state with a single setter, mobile toggli
 All four probe scenarios pass in Chromium and WebKit (zero failed expectations); logs are `tmp/sidebar-613/fixed-{chromium,webkit}.log`. This includes desktop backdrop removal, aria-hidden cleanup, focus return to a sidebar trigger, mobile reopen with scroll lock, Escape state reset, desktop API behavior, and unchanged desktop toggling. `go build ./...`, `go vet ./components/...`, and `git diff --check` pass. Build/vet required normal cache access outside the sandbox. Implementation diff contains only `components/sidebar/sidebar.js` and the watcher-generated `components/scripts_bundle.go`; the task log/checkmarks are also committed as the plan rules require. The pre-existing `plans/chart-612.md` modification is untouched. Both tasks are ready for Planner review; status remains Planner-owned.
 
 ## Planner review
+
+### Review (Claude, 2026-09-21)
+
+Read both commits (`8fbb081d`, `e34c0a71`) and re-ran every check on the Executor's `main`.
+
+- **Task 1: accepted.** `tmp/sidebar-613/probe.mjs` covers scenarios A to D with the fields the plan asked for and exits non-zero on a failed expectation. The baseline logs show the issue's failure and the `openMobile()` false-while-open bug.
+- **Task 2: accepted.** The diff is what Decisions describe, nothing more: `openMobileOf`, one writer `setOpenMobile`, `toggleSidebar` through the writer, the mount and unmount sync in `init`, the `dialog-open-change` listener, the API reading the state. `dialog-close` is not listened to. `dialog.js`, `sheet.templ`, templ, classes and docs are untouched; the diff touches `sidebar.js` and the watcher-generated `components/scripts_bundle.go` (`950ca0a6a66c4dec`, the served bundle carries the new attribute).
+- **Verification by the Planner.** `probe.mjs` in Chromium and WebKit: 0 failed expectations each. A second run in a visible Chromium with OS level window resizes through CDP `Browser.setWindowBounds` (`tmp/sidebar-613/headed.mjs`, real `resize` events, 750/800/750): after the resize to 800 the dialog is closed, the root hidden, the rail trigger receives the hit test, `main` is not `aria-hidden`, the scroll lock is released and focus sits on the header trigger, the element focused before the sheet opened, which is the React unmount's return focus; `openMobile()` stays true; back at 750 the sheet is open again with scroll lock and `aria-hidden` marking, as on ui.shadcn.com. Escape resets the state and survives both resizes. The desktop API sets the state without opening anything and the next mobile viewport opens the sheet. The desktop toggle collapses and expands as before. After the unmount a real click on the rail collapses the sidebar. Screenshots `tmp/sidebar-613/headed-A-desktop.png` (no backdrop) and `headed-A-mobile-again.png` (sheet with backdrop). `go build ./...`, `go vet ./components/...`, `git diff --check` pass.
+- **Not verified in real Safari and real Chrome.** Safari's "Allow remote automation" is off and the Claude Chrome extension is not connected; no Chrome is installed. `tmp/sidebar-613/safari.mjs` drives the same sequence through `safaridriver` and can run once that setting is on.
+- **Noted, out of scope.** The shared body scroll lock is released on resize by another script while a modal dialog is open (seen on `main` before the fix). Since the fix closes the dialog on desktop and reopens it on mobile the sidebar no longer exposes this, but the shared lock remains a separate topic.
+
+No new tasks. Status done.
