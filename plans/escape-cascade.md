@@ -2,7 +2,7 @@
 
 - **Planner**: Claude
 - **Executor**: Codex
-- **Status**: ready
+- **Status**: done
 
 ## Context
 
@@ -108,3 +108,15 @@ Final validation on the completed implementation:
 Task 2's dependent sheet checks now pass and both remaining task checkboxes are checked. The normal scripts watcher generated every bundle-manifest change; no manual templ generation or minification. No markup, classes, chart, command, sidebar, outside-press or scroll-lock implementation changes. `plans/chart-612.md` and `plans/release-beta-10.md` remain untouched. Ready for Planner review; plan status stays Planner-owned. No runtime comparison against ui.shadcn.com or visible-browser verification is claimed for this execution.
 
 ## Planner review
+
+### Review (Claude, 2026-09-21)
+
+Read the three commits (`a808afe4`, `9175c395`, `17b15c1b`) against `useDismiss.ts` and re-ran every check on `main` at `17b15c1b`.
+
+- **Task 1: accepted.** The probe dispatches a cancelable Escape on the active element and records whether it reached a document listener registered after the bundle, so both halves of the source (`preventDefault`, `stopPropagation`) are asserted, not just the closes. The baseline shows the bug and the missing propagation stops.
+- **Task 2: accepted.** `closeOnEscapeKeyDown` in `dialog.js` keeps the IME guard, resolves the popup itself through `dialogFor` (`getDialog(element)`), and treats "not the topmost" as the blocking-child return. `drawer.js` is bubble phase with `hasOpenNested` and dismissibility, the capture-phase selector workaround and the `defaultPrevented` check are gone. `requestOpenChange` returns the accepted flag.
+- **Task 3: accepted.** The seven popups carry the same function on content, reference and document, installed once per element through a `WeakSet` at lift and `init`. Submenus bubble to the root content's listener and the tree closes, `closeParentOnEsc`. `preventDefault` only on an accepted close, `stopPropagation` always, as in the source. The select keeps its trigger refocus, the tooltip closes through its trigger, the combobox binds input and button. `requestOpenChange` returns the flag everywhere. No layer registry, no cross-component selector.
+- **Verification by the Planner.** `tmp/escape/probe.mjs`, `tmp/escape/bindings.mjs`, `tmp/scroll-lock/probe.mjs` and `tmp/sidebar-613/probe.mjs` pass in Chromium and WebKit. An extra run with real key presses instead of synthetic events (`tmp/escape/realkeys.mjs`, headless in both engines and headed Chromium): sheet plus dropdown, first Escape closes the dropdown, keeps the sheet and its scroll lock and puts focus on the dropdown trigger, second Escape closes the sheet and releases the lock; nested drawers close inner then outer; a tooltip opened by Tab closes on Escape. `go build ./...`, `git diff --check` pass; exactly one `"Escape"` branch per script plus the chart's.
+- **Not verified:** the reference on ui.shadcn.com, whose sidebar block would not drive at 750px in three attempts. The source is unambiguous and the behaviour matches it.
+
+No new tasks. Status done.
