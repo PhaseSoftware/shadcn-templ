@@ -64,7 +64,7 @@ Checks: `node tmp/sidebar-613/probe.mjs chromium`, same for webkit, both exiting
 
 ### 2. `openMobile` state in `sidebar.js`
 
-- [ ] Done
+- [x] Done
 
 `components/sidebar/sidebar.js`, per Decisions: `openMobileOf(sidebarId)` reads the attribute; `setOpenMobile(open, sidebarId)` writes it and syncs the dialog through `window.tui.dialog.open` and `.close` on `document.getElementById(sidebarId + "-mobile")`; `toggleSidebar` below md calls `setOpenMobile(!openMobileOf(sidebarId), sidebarId)`; `init()` syncs mount and unmount after the content move; a `document.addEventListener("dialog-open-change", ...)` maps the popup id back to the sidebar and calls `setOpenMobile(event.detail.open, sidebarId)`; `window.tui.sidebar.openMobile` returns `openMobileOf`, `window.tui.sidebar.setOpenMobile` calls the writer. Comments name the shadcn members they port (`openMobile`, `setOpenMobile`, `toggleSidebar`, the `Sheet` mount and unmount). Let `scripts-watch` rewrite `components/scripts_bundle.go` and commit it with the change.
 
@@ -77,5 +77,11 @@ Checks: `node tmp/sidebar-613/probe.mjs chromium`, same for webkit, `go build ./
 ### Task 1 (Codex, 2026-09-21)
 
 Restarted the stale `task dev` through the normal watcher workflow. Preview returns HTTP 200 and references the existing `assets/js/shadcn-templ-d973fedcd37cd54a.js`. Added gitignored `tmp/sidebar-613/probe.mjs` with scenarios A through D and per-step state assertions. Both baseline engines report 13 expected failed expectations: the desktop modal remains open, the backdrop intercepts the rail, main stays aria-hidden, focus is not returned, the mobile API always reports false, and desktop API opening incorrectly opens the dialog. The known resize scroll-lock release is also captured. Scenario D passes in both engines. Logs: `tmp/sidebar-613/baseline-{chromium,webkit}.log`. Focus assertion accepts either sidebar trigger because the rail becomes the first DOM trigger on desktop, while opening on mobile uses the header trigger. No implementation changes for this task; probe and logs remain gitignored as required.
+
+### Task 2 (Codex, 2026-09-21)
+
+Implemented wrapper-owned `openMobile` state with a single setter, mobile toggling through that setter, viewport mount/unmount synchronization in `init`, and user dismissal synchronization through `dialog-open-change`. The public API now reads state independently of the dialog. Desktop toggle, cookie, tooltips and keyboard shortcut paths remain unchanged. The normal scripts watcher generated bundle `950ca0a6a66c4dec` and updated `components/scripts_bundle.go`; no manual generation or minification was run.
+
+All four probe scenarios pass in Chromium and WebKit (zero failed expectations); logs are `tmp/sidebar-613/fixed-{chromium,webkit}.log`. This includes desktop backdrop removal, aria-hidden cleanup, focus return to a sidebar trigger, mobile reopen with scroll lock, Escape state reset, desktop API behavior, and unchanged desktop toggling. `go build ./...`, `go vet ./components/...`, and `git diff --check` pass. Build/vet required normal cache access outside the sandbox. Implementation diff contains only `components/sidebar/sidebar.js` and the watcher-generated `components/scripts_bundle.go`; the task log/checkmarks are also committed as the plan rules require. The pre-existing `plans/chart-612.md` modification is untouched. Both tasks are ready for Planner review; status remains Planner-owned.
 
 ## Planner review

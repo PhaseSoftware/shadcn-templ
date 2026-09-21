@@ -11,6 +11,24 @@
     );
   }
 
+  // SidebarProvider.openMobile survives the Sheet's viewport-driven unmount.
+  function openMobileOf(sidebarId) {
+    return !!anyWrapper(sidebarId)?.hasAttribute("data-tui-sidebar-open-mobile");
+  }
+
+  // SidebarProvider.setOpenMobile: state is independent of the mounted Sheet.
+  function setOpenMobile(open, sidebarId) {
+    const wrapper = anyWrapper(sidebarId);
+    if (!wrapper) return;
+    wrapper.toggleAttribute("data-tui-sidebar-open-mobile", !!open);
+    if (!window.matchMedia(MOBILE_QUERY).matches) return;
+    const popup = document.getElementById(wrapper.getAttribute("data-tui-sidebar-id") + "-mobile");
+    const dialog = window.tui?.dialog;
+    if (!popup || !dialog) return;
+    if (open && !dialog.isOpen(popup)) dialog.open(popup);
+    else if (!open && dialog.isOpen(popup)) dialog.close(popup);
+  }
+
   // The sidebar content renders once and moves between the desktop container
   // and the mobile sheet, depending on the viewport.
   function init() {
@@ -29,6 +47,16 @@
         const inner = wrapperFor(sidebarId)?.querySelector('[data-slot="sidebar-inner"]');
         if (inner) inner.appendChild(content);
       }
+
+      // Mount/unmount the Sheet with open={openMobile}, as in shadcn's Sidebar.
+      const popup = document.getElementById(sidebarId + "-mobile");
+      const dialog = window.tui?.dialog;
+      if (!popup || !dialog) return;
+      if (isMobile && openMobileOf(sidebarId) && !dialog.isOpen(popup)) {
+        dialog.open(popup);
+      } else if (!isMobile && dialog.isOpen(popup)) {
+        dialog.close(popup);
+      }
     });
   }
 
@@ -44,9 +72,9 @@
   new MutationObserver(() => init()).observe(document.body, { childList: true, subtree: true });
 
   function toggleSidebar(sidebarId) {
-    // Below md the trigger opens the mobile sheet instead of collapsing.
+    // shadcn's toggleSidebar: setOpenMobile((open) => !open) below md.
     if (window.matchMedia(MOBILE_QUERY).matches) {
-      window.tui?.dialog?.toggle(sidebarId + "-mobile");
+      setOpenMobile(!openMobileOf(sidebarId), sidebarId);
       return;
     }
 
@@ -85,6 +113,15 @@
     if (targetId) toggleSidebar(targetId);
   });
 
+  // Sheet onOpenChange={setOpenMobile}; unmount closes do not change state.
+  document.addEventListener("dialog-open-change", (event) => {
+    if (!(event.target instanceof Element)) return;
+    const id = event.target.id;
+    if (!id.endsWith("-mobile")) return;
+    const sidebarId = id.slice(0, -"-mobile".length);
+    if (wrapperFor(sidebarId)) setOpenMobile(event.detail.open, sidebarId);
+  });
+
   // The useSidebar pendant: the same seven members as the React hook,
   // addressing the first sidebar unless a sidebarId is given.
   function anyWrapper(sidebarId) {
@@ -109,16 +146,10 @@
       }
     },
     openMobile(sidebarId) {
-      const wrapper = anyWrapper(sidebarId);
-      const sheet = wrapper && document.getElementById(wrapper.getAttribute("data-tui-sidebar-id") + "-mobile");
-      return !!(sheet && sheet.open);
+      return openMobileOf(sidebarId);
     },
     setOpenMobile(open, sidebarId) {
-      const wrapper = anyWrapper(sidebarId);
-      if (!wrapper) return;
-      const id = wrapper.getAttribute("data-tui-sidebar-id") + "-mobile";
-      if (open) window.tui?.dialog?.open(id);
-      else window.tui?.dialog?.close(id);
+      setOpenMobile(open, sidebarId);
     },
     isMobile() {
       return window.matchMedia(MOBILE_QUERY).matches;
