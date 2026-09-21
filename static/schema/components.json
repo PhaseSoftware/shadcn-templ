@@ -36,6 +36,14 @@
       },
       "required": ["css", "baseColor", "cssVariables"]
     },
+    "scripts": {
+      "type": "object",
+      "properties": {
+        "dir": {"type": "string", "minLength": 1, "default": "assets/js"},
+        "path": {"type": "string", "minLength": 1, "default": "/assets/js"}
+      },
+      "required": ["dir", "path"]
+    },
     "rtl": {
       "type": "boolean"
     },

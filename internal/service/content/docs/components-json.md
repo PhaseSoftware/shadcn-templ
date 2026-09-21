@@ -157,3 +157,28 @@ Import path for your components.
   }
 }
 ```
+
+## scripts
+
+Configure where the CLI writes the component JavaScript bundle and where your server exposes it:
+
+```json
+{
+  "scripts": {
+    "dir": "assets/js",
+    "path": "/assets/js"
+  }
+}
+```
+
+Existing configurations without `scripts` receive these defaults when the CLI builds the bundle.
+
+### scripts.dir
+
+The output directory, relative to the project root. `bundle` writes `shadcn-templ-<hash>.js` here and removes older `shadcn-templ-*.js` files from the same directory. Add this generated filename pattern to `.gitignore` if you change the directory.
+
+### scripts.path
+
+The public URL prefix for the output directory. Use `/assets/js`, an application prefix such as `/my-app/assets/js`, or a CDN URL such as `https://cdn.example.com/js`. The CLI writes the complete URL into `components/scripts_bundle.go`; `@components.Scripts()` renders it.
+
+After changing either setting, run `shadcn-templ bundle` and configure your server or upload step to expose `scripts.dir` at `scripts.path`.

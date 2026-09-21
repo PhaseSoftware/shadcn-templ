@@ -16,7 +16,7 @@ import (
 	"github.com/axadrn/shadcn-templ/v2/internal/registryapi"
 )
 
-func TestAddJavaScriptComponentInstallsRuntimeAtComponentsAlias(t *testing.T) {
+func TestAddJavaScriptComponentBuildsBundleAtComponentsAlias(t *testing.T) {
 	t.Setenv("GO_ENV", "production")
 
 	mux := http.NewServeMux()
@@ -81,14 +81,43 @@ func TestAddJavaScriptComponentInstallsRuntimeAtComponentsAlias(t *testing.T) {
 	}
 
 	assertFileContains(
-		"internal/design/scripts.go",
+		"internal/design/scripts_bundle.go",
 		"package design",
-		`const developmentComponentsDir = "internal/design"`,
+		`const bundleSrc = "/assets/js/shadcn-templ-`,
 	)
 	assertFileContains("internal/design/scripts.templ", "package design")
-	assertFileContains("internal/design/embed.go", "package design")
+	for _, name := range []string{"scripts.go", "embed.go"} {
+		if _, err := os.Stat(filepath.Join(cwd, "internal/design", name)); !os.IsNotExist(err) {
+			t.Errorf("unexpected legacy file %s", name)
+		}
+	}
+	bundles, _ := filepath.Glob(filepath.Join(cwd, "assets/js/shadcn-templ-*.js"))
+	if len(bundles) != 1 {
+		t.Fatalf("bundles = %v", bundles)
+	}
+	assertFileContains("internal/design/scripts_bundle.go", filepath.Base(bundles[0]))
+	if err := RunAdd([]string{"dialog"}, AddOptions{Cwd: cwd, Silent: true, Overwrite: true, Registry: server.URL}); err != nil {
+		t.Fatal(err)
+	}
+	assertFileContains("internal/design/scripts_bundle.go", filepath.Base(bundles[0]))
 	assertFileContains("internal/design/dialog/dialog.js", "(() =>")
 	assertFileContains("internal/shared/shadcn-templ.go", "package shared")
+
+	scaffold := filepath.Join(t.TempDir(), "scaffold")
+	if err := RunInit(InitOptions{Cwd: filepath.Dir(scaffold), Template: "templ", ProjectName: "scaffold", Silent: true, Registry: server.URL}); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"components/scripts.templ", "components/scripts_bundle.go", "assets/assets.go"} {
+		if _, err := os.Stat(filepath.Join(scaffold, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, name := range []string{"components/scripts.go", "components/embed.go"} {
+		if _, err := os.Stat(filepath.Join(scaffold, name)); !os.IsNotExist(err) {
+			t.Errorf("unexpected scaffold file %s", name)
+		}
+	}
+
 }
 
 func TestAddResolvesFontHeadingFromProjectStylesheet(t *testing.T) {

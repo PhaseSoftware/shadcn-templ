@@ -22,6 +22,11 @@ tasks:
     cmds:
       - "tailwindcss -i ./assets/css/globals.css -o ./assets/css/output.css --clean"
 
+  scripts-watch:
+    desc: Watch component scripts
+    cmds:
+      - go run ./cmd/shadcn-templ bundle --watch
+
   tailwind-watch:
     desc: Run tailwindcss in watch mode
     cmds:
@@ -38,7 +43,7 @@ tasks:
       - kill-ports
       - tailwind-clean
     cmds:
-      - task --parallel tailwind-watch templ shiki-highlighter
+      - task --parallel tailwind-watch scripts-watch templ shiki-highlighter
 
   # Build & Validation
   templ-generate:

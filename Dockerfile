@@ -37,6 +37,9 @@ RUN ARCH=$(uname -m) && \
 # Generate Tailwind CSS output (the 2.0 entry file is globals.css)
 RUN ./tailwindcss -i ./assets/css/globals.css -o ./assets/css/output.css --minify
 
+# Build the component JS asset before embedding assets in the application.
+RUN go run ./cmd/shadcn-templ bundle
+
 # Build the application as a static binary. -p 2 caps compile parallelism
 # so small builders do not OOM, -s -w strips debug info from the binary.
 RUN CGO_ENABLED=0 GOOS=linux go build -p 2 -ldflags="-s -w" -o main ./cmd/docs/main.go

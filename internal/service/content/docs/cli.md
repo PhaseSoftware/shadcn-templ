@@ -71,6 +71,30 @@ Options:
   -c, --cwd <cwd>  the working directory (default ".")
 ```
 
+## bundle
+
+Use `bundle` to build the component JavaScript asset and its generated Go URL manifest:
+
+```shell
+shadcn-templ bundle
+```
+
+`add` rebuilds the bundle when it writes component JavaScript. Run `bundle --watch` when editing scripts by hand. The watcher debounces changes by 100ms and writes only changed output.
+
+The output location comes from [scripts](/docs/components-json#scripts) in `components.json`. Old hashed bundles in that directory are removed. Ignore the JS output, commit `components/scripts_bundle.go`, and run `bundle` before `go build` in deployment.
+
+**Options**
+
+```shell
+Usage:
+  shadcn-templ bundle [--cwd <path>] [--silent] [--watch]
+
+Options:
+  --cwd <path>  the working directory (default ".")
+  --silent      mute output
+  --watch       rebuild when component scripts change
+```
+
 ## apply
 
 Use the `apply` command to apply a preset to an existing project.

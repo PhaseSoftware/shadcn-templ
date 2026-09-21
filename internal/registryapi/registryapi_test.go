@@ -374,10 +374,10 @@ func TestBuildStyleItem(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if scripts == nil || scripts.Type != "registry:lib" || len(scripts.Files) != 3 {
+	if scripts == nil || scripts.Type != "registry:lib" || len(scripts.Files) != 2 {
 		t.Fatalf("scripts item = %+v", scripts)
 	}
-	wantScriptFiles := []string{"components/scripts.templ", "components/scripts.go", "components/embed.go"}
+	wantScriptFiles := []string{"components/scripts.templ", "components/scripts_bundle.go"}
 	for i, want := range wantScriptFiles {
 		if scripts.Files[i].Path != want {
 			t.Errorf("scripts file %d = %q, want %q", i, scripts.Files[i].Path, want)

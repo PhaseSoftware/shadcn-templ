@@ -42,7 +42,12 @@ func TestPortaledPositioningStrategiesMatchTheirCoordinateSystems(t *testing.T) 
 		requireSource(t, "../"+component+"/"+component+".js", `strategy: "absolute"`)
 		requireSource(t, "../"+component+"/"+component+".templ", positionerClass)
 	}
-	requireSourceCount(t, "../dropdownmenu/dropdownmenu.js", `strategy: "absolute"`, 2)
+	// The dropdown's root popup is portaled to <body> and positions absolute.
+	// Its sub content stays nested inside that popup, so it positions fixed
+	// to escape the popup's overflow clip, the context menu's pattern.
+	requireSourceCount(t, "../dropdownmenu/dropdownmenu.js", `strategy: "absolute"`, 1)
+	requireSourceCount(t, "../dropdownmenu/dropdownmenu.js", `strategy: "fixed"`, 1)
+	requireSource(t, "../dropdownmenu/dropdownmenu.templ", `"hidden fixed inset-auto left-0 top-0`)
 
 	requireSourceCount(t, "../contextmenu/contextmenu.js", `strategy: "fixed"`, 2)
 	requireSource(t, "../contextmenu/contextmenu.templ", `class="pointer-events-none isolate fixed inset-auto`)

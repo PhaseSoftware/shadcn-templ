@@ -284,48 +284,61 @@ import "your-app/components"
 </head>
 ```
 
-Mount the route the script tag points at:
+When you add a component with JavaScript, the CLI builds `assets/js/shadcn-templ-<hash>.js` and writes its URL to `components/scripts_bundle.go`. Serve the JS file with your other assets. There is no component-specific HTTP handler or runtime bundling.
 
-```go
-mux.Handle("GET /components/{bundle}", components.ScriptsHandler())
+The bundle contains `*/*.js` from your configured components directory in lexical order (excluding `.min.js` files). Root-level scripts are not included. Change its output directory and public URL with [scripts.dir and scripts.path](/docs/components-json#scripts).
+
+While editing component scripts, run:
+
+```shell
+shadcn-templ bundle --watch
 ```
 
-The bundle is the concatenation of every `.js` file under your configured components directory. In production (`GO_ENV=production`) it is built once from the embedded files and served with immutable caching; in development it is rebuilt from that local directory on every request, so edits to copied component scripts hot-reload.
+The scaffold's `task dev` runs this watcher for you. For a one-off rebuild, run `shadcn-templ bundle`.
+
+Commit `components/scripts_bundle.go` together with the component sources. Ignore `assets/js/shadcn-templ-*.js`, just like `assets/css/output.css`; both are build artifacts. **A deployment from a clean checkout must run `shadcn-templ bundle` before `go build`**, alongside the Tailwind build. The same source files produce the same hash. After merging component changes, rerun `bundle` to update the manifest.
+
+Upgrading from runtime bundling: remove the old `components/scripts.go`, `components/embed.go` and `/components/{bundle}` route, update `scripts.templ` with `shadcn-templ add scripts --overwrite`, and run `shadcn-templ bundle`.
 
 ## Serve Assets
 
-Use `setupAssetsRoutes(...)` to serve your app assets like Tailwind CSS output, fonts, images, and local files:
+Serve `/assets/` from your asset directory or CDN. The content hash in the bundle filename makes `Cache-Control: public, max-age=31536000, immutable` safe. Compression belongs to your asset server or proxy.
+
+For a Go app that embeds production assets, add:
+
+```go title="assets/assets.go"
+package assets
+
+import "embed"
+
+//go:embed all:*
+var Assets embed.FS
+```
+
+Mount your asset handler (import `your-app/assets`, `net/http`, `os`, and `strings`):
 
 ```go
 func setupAssetsRoutes(mux *http.ServeMux) {
-  isDevelopment := os.Getenv("GO_ENV") != "production"
-
-  // Your app assets (CSS, fonts, images, ...)
-  assetHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-    if isDevelopment {
+  development := os.Getenv("SHADCN_TEMPL_DEV") == "true" || os.Getenv("TEMPL_DEV_MODE") == "true"
+  files := http.FileServer(http.FS(assets.Assets))
+  if development {
+    files = http.FileServer(http.Dir("./assets"))
+  }
+  handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+    if development {
       w.Header().Set("Cache-Control", "no-store")
+    } else if strings.HasPrefix(strings.TrimPrefix(r.URL.Path, "/"), "js/shadcn-templ-") {
+      w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
     } else {
-      w.Header().Set("Cache-Control", "public, max-age=31536000")
+      w.Header().Set("Cache-Control", "no-cache")
     }
-
-    var fs http.Handler
-    if isDevelopment {
-      fs = http.FileServer(http.Dir("./assets"))
-    } else {
-      fs = http.FileServer(http.FS(assets.Assets))
-    }
-
-    fs.ServeHTTP(w, r)
+    files.ServeHTTP(w, r)
   })
-
-  mux.Handle("GET /assets/", http.StripPrefix("/assets/", assetHandler))
-
-  // shadcn-templ component script bundle
-  mux.Handle("GET /components/{bundle}", components.ScriptsHandler())
+  mux.Handle("GET /assets/", http.StripPrefix("/assets/", handler))
 }
 ```
 
-Your Go app must serve `/assets/...` so the browser can load `assets/css/output.css`, fonts, images, and local files. The `/components/{bundle}` route serves the hashed script bundle that `@components.Scripts()` loads.
+The scaffold uses production assets when no development flag is set. `task dev` sets `SHADCN_TEMPL_DEV=true`; templ's watcher sets `TEMPL_DEV_MODE=true`. The scaffold temporarily also accepts `GO_ENV=development` as a deprecated alias, to be removed after this minor version. Unhashed assets such as `output.css` revalidate; only the hashed bundle is cached immutable.
 
 > **📝 Note:** shadcn-templ also works as a plain Go module dependency without copying any source. That is a shadcn-templ extra outside this page, see [Import Workflow](/docs/import-workflow).
 

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://shadcn-templ.com/schema/components.json",
+  "style": "base-nova",
+  "tailwind": {
+    "css": "assets/css/globals.css",
+    "baseColor": "neutral",
+    "cssVariables": true
+  },
+  "scripts": {
+    "dir": "assets/js",
+    "path": "/assets/js"
+  },
+  "aliases": {
+    "components": "github.com/axadrn/shadcn-templ/v2/components",
+    "utils": "github.com/axadrn/shadcn-templ/v2/utils"
+  }
+}

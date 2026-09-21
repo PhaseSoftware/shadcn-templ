@@ -47,6 +47,15 @@ type Tailwind struct {
 	CSSVariables bool   `json:"cssVariables"`
 }
 
+// Scripts configures the build output directory and public URL prefix.
+type Scripts struct {
+	Dir  string `json:"dir"`
+	Path string `json:"path"`
+}
+
+// DefaultScripts returns the conventional asset directory and URL.
+func DefaultScripts() *Scripts { return &Scripts{Dir: "assets/js", Path: "/assets/js"} }
+
 // Aliases holds Go import paths, the pendant of shadcn's tsconfig aliases.
 type Aliases struct {
 	Components string `json:"components"`
@@ -55,6 +64,7 @@ type Aliases struct {
 
 // RawConfig is the rawConfigSchema pendant: components.json as written.
 type RawConfig struct {
+	Scripts     *Scripts `json:"scripts,omitempty"`
 	Schema      string   `json:"$schema,omitempty"`
 	Style       string   `json:"style"`
 	Tailwind    Tailwind `json:"tailwind"`
@@ -68,6 +78,7 @@ type RawConfig struct {
 // ResolvedPaths is the resolvedPaths pendant: absolute paths derived from the
 // aliases and the go.mod module path.
 type ResolvedPaths struct {
+	Scripts     string
 	Cwd         string
 	TailwindCSS string
 	Components  string
@@ -77,8 +88,9 @@ type ResolvedPaths struct {
 // Config is the configSchema pendant: RawConfig plus resolved paths.
 type Config struct {
 	RawConfig
-	Module        string
-	ResolvedPaths ResolvedPaths
+	Module           string
+	ScriptsDefaulted bool
+	ResolvedPaths    ResolvedPaths
 }
 
 // ConfigFileName is the components.json file name.
@@ -131,10 +143,20 @@ func ResolveConfigPaths(cwd string, raw *RawConfig) (*Config, error) {
 		return nil, fmt.Errorf("no tailwind.css path in %s", ConfigFileName)
 	}
 
+	defaulted := raw.Scripts == nil
+	resolved := *raw
+	if defaulted {
+		resolved.Scripts = DefaultScripts()
+	}
+	if resolved.Scripts.Dir == "" || resolved.Scripts.Path == "" {
+		return nil, fmt.Errorf("scripts.dir and scripts.path must not be empty")
+	}
 	return &Config{
-		RawConfig: *raw,
-		Module:    module,
+		RawConfig:        resolved,
+		ScriptsDefaulted: defaulted,
+		Module:           module,
 		ResolvedPaths: ResolvedPaths{
+			Scripts:     filepath.Join(cwd, filepath.FromSlash(resolved.Scripts.Dir)),
 			Cwd:         cwd,
 			TailwindCSS: filepath.Join(cwd, filepath.FromSlash(raw.Tailwind.CSS)),
 			Components:  componentsDir,

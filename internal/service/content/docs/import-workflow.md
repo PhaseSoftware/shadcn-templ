@@ -98,4 +98,6 @@ import "github.com/axadrn/shadcn-templ/v2/components/button"
 
 ## JavaScript and Assets
 
-The script bundle and asset serving are identical in both workflows: see [Installation → JavaScript](/docs/installation#javascript) and [Installation → Serve Assets](/docs/installation#serve-assets).
+JavaScript is built from the component sources in your app. Importing a Go component package alone does not produce the JS asset. For components with browser behavior, install the matching component through the CLI (for example, `shadcn-templ add accordion`) and render `@components.Scripts()` from your **local** components package. The CLI builds the asset and URL manifest; your views can still import the Go module's components.
+
+See [Installation → JavaScript](/docs/installation#javascript) for the build step and [Installation → Serve Assets](/docs/installation#serve-assets) for serving. Use the same style for your installed scripts and imported views.

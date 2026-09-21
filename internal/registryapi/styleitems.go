@@ -21,7 +21,7 @@ import (
 	"github.com/axadrn/shadcn-templ/v2/internal/shared"
 )
 
-// isDevelopment mirrors components/scripts.go: outside production every
+// isDevelopment reads registry sources from disk outside production: every
 // request recompiles from disk so edits hot-reload.
 func isDevelopment() bool {
 	return os.Getenv("GO_ENV") != "production"
@@ -102,7 +102,7 @@ func componentSource(filePath string) ([]byte, error) {
 	if strings.HasPrefix(filePath, "blocks/") {
 		return blocks.TemplFiles.ReadFile(strings.TrimPrefix(filePath, "blocks/"))
 	}
-	return components.TemplFiles.ReadFile(strings.TrimPrefix(filePath, "components/"))
+	return components.SourceFiles.ReadFile(strings.TrimPrefix(filePath, "components/"))
 }
 
 var (

@@ -1040,18 +1040,14 @@
     {
       "name": "scripts",
       "type": "registry:lib",
-      "description": "Shared component JavaScript bundle and HTTP handler",
+      "description": "Component JavaScript tag and generated bundle URL",
       "files": [
         {
           "path": "components/scripts.templ",
           "type": "registry:lib"
         },
         {
-          "path": "components/scripts.go",
-          "type": "registry:lib"
-        },
-        {
-          "path": "components/embed.go",
+          "path": "components/scripts_bundle.go",
           "type": "registry:lib"
         }
       ]
