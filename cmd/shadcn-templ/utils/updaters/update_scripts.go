@@ -19,7 +19,8 @@ func UpdateScripts(config *utils.Config) (path string, written bool, err error) 
 		return "", false, err
 	}
 	var bundle bytes.Buffer
-	// Glob returns lexical order, keeping floating_ui_core before floating_ui_dom.
+	// Glob returns lexical order: baseui before its consumers, and
+	// floating_ui_core before floating_ui_dom.
 	for _, file := range files {
 		if strings.HasSuffix(file, ".min.js") {
 			continue

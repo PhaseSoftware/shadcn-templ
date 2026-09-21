@@ -37,6 +37,7 @@
 - [Button Group](https://shadcn-templ.com/docs/components/button-group): Group related buttons together with shared borders.
 - [Item](https://shadcn-templ.com/docs/components/item): A flexible row for lists — media, title, description and actions.
 - [Pagination](https://shadcn-templ.com/docs/components/pagination): Pagination component for lists and tables.
+- [Resizable](https://shadcn-templ.com/docs/components/resizable): Accessible resizable panel groups and layouts with keyboard support.
 - [Separator](https://shadcn-templ.com/docs/components/separator): Visual divider between content sections.
 - [Sidebar](https://shadcn-templ.com/docs/components/sidebar): Collapsible sidebar component for app layouts.
 - [Tabs](https://shadcn-templ.com/docs/components/tabs): Tabbed interface component.

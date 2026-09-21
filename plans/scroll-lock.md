@@ -80,7 +80,7 @@ Checks: `node tmp/scroll-lock/probe.mjs chromium`, same for webkit.
 
 ### 2. `components/baseui/scroll_lock.js`
 
-- [ ] Done
+- [x] Done
 
 The one file per Decisions, an IIFE like every component script, headed by a comment naming `useScrollLock.ts` and listing the helper sources it carries. `registry.json`, the five docs pages and `static/llms.txt` per Decisions. `update_scripts.go:22` comment extended to name `baseui` before its consumers. No consumer changes yet; the bundle carries the new file unused.
 
@@ -124,5 +124,11 @@ Evidence requires corrections to the anticipated baseline and checks (Decisions 
 - The supplied `useAnimationFrame.ts` includes a shared Scheduler, rather than only a thin native rAF wrapper. Task 2 retains that production scheduler along with AnimationFrame; React effect adapters and test-only scheduler resets are not needed.
 
 Task 1 is checked as completed with these measured baseline corrections, not as a claim that the anticipated failure list was accurate. Probe and logs remain gitignored.
+
+### Task 2 (Codex, 2026-09-21)
+
+Added `components/baseui/scroll_lock.js`: the supplied useScrollLock implementation with TypeScript/React adapters removed, helper classes including the production rAF scheduler, platform flags, viewport overflow helper, and the anchored popup rule. Exported only acquire and anchoredPopup. Registry and five ComponentSource listings include the shared file before Floating UI; the bundler ordering comment documents baseui first. `task generate-llms` ran as requested; its only output delta is the previously missing Resizable entry (the generator does not list component source files).
+
+`go test ./internal/registryapi/`, `node --check components/baseui/scroll_lock.js` and `git diff --check` pass. The normal `task dev` docs server serves the new ComponentSource block, verified by `tmp/scroll-lock/shared.mjs` in both engines. That check also passes direct acquire/release, two-owner refcount, immediate acquire/release, preserving a foreign lock, and taking over after a foreign lock clears. No consumers changed yet. The scripts watcher updated the committed bundle reference.
 
 ## Planner review
