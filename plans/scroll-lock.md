@@ -131,4 +131,10 @@ Added `components/baseui/scroll_lock.js`: the supplied useScrollLock implementat
 
 `go test ./internal/registryapi/`, `node --check components/baseui/scroll_lock.js` and `git diff --check` pass. The normal `task dev` docs server serves the new ComponentSource block, verified by `tmp/scroll-lock/shared.mjs` in both engines. That check also passes direct acquire/release, two-owner refcount, immediate acquire/release, preserving a foreign lock, and taking over after a foreign lock clears. No consumers changed yet. The scripts watcher updated the committed bundle reference.
 
+### Task 3 implementation (Codex, 2026-09-21)
+
+Dialog state and drawer nodes now hold and clear their own release function on close and retirement. Removed both lock copies and observer unlock calls. Drawer replacement through a fresh portal template also releases the stale drawer, in addition to owner removal, because a retained release must cover both existing unmount paths. No focus, opening/closing, or aria-hidden semantics changed.
+
+`go build ./...`, syntax checks and `git diff --check` pass. The sidebar probe, updated only in its gitignored computed-lock reader, passes in Chromium. Scroll-lock probe A, C, D and E pass in both engines; B/G keep the lock on menu open but still lose it on menu close. F now exposes the old unconditional touch lock. These four failures per engine are dependencies on task 4, not changes to the planned dialog/drawer behavior. Consequently the task-3 checkbox stays open until the integrated task-4 run passes (the task-3 done-when line cannot hold while the remaining three scripts still own lock copies). Logs: `tmp/scroll-lock/task3-{chromium,webkit}.log` and `task3-sidebar-chromium.log`. Watcher-generated bundle included.
+
 ## Planner review

@@ -239,48 +239,6 @@
     };
   }
 
-  // ----- scroll lock (useScrollLock port, deferred like ScrollLocker) --------
-
-  // Base UI locks the background scroll while a modal is open and pads the
-  // body by the scrollbar width so the page does not shift. Like Base UI's
-  // ScrollLocker.acquire (packages/utils/src/useScrollLock.ts), the lock
-  // lands in a 0ms timeout: the click's frame paints the enter animation
-  // without paying the full-page scrollbar relayout first.
-  let lockTimer;
-
-  function anyModalOpen() {
-    // The native-dialog selector keeps the shared body lock coordinated with
-    // drawer.js until the drawer is ported to the same DOM scheme.
-    return (
-      openStack.some((state) => isModal(state)) ||
-      !!document.querySelector('dialog[open][data-tui-dialog-show-modal="true"]')
-    );
-  }
-
-  function applyScrollLock() {
-    lockTimer = undefined;
-    if (!anyModalOpen()) return;
-    if (document.body.hasAttribute("data-tui-scroll-locked")) return;
-    const scrollbar = window.innerWidth - document.documentElement.clientWidth;
-    document.body.setAttribute("data-tui-scroll-locked", "");
-    document.body.style.overflow = "hidden";
-    if (scrollbar > 0) document.body.style.paddingRight = scrollbar + "px";
-  }
-
-  function lockScroll() {
-    if (lockTimer !== undefined || document.body.hasAttribute("data-tui-scroll-locked")) return;
-    lockTimer = window.setTimeout(applyScrollLock, 0);
-  }
-
-  function unlockScroll() {
-    if (anyModalOpen()) return;
-    window.clearTimeout(lockTimer);
-    lockTimer = undefined;
-    document.body.removeAttribute("data-tui-scroll-locked");
-    document.body.style.overflow = "";
-    document.body.style.paddingRight = "";
-  }
-
   // ----- aria wiring (useDialogTitle/-Description registration) --------------
 
   function wireAria(state) {
@@ -410,7 +368,7 @@
     });
 
     if (isModal(state)) {
-      lockScroll();
+      state.releaseScroll = window.tui.scrollLock.acquire(popup);
       state.undoMarkOthers = markOthers([state.root]);
     }
 
@@ -454,7 +412,8 @@
       state.undoMarkOthers();
       state.undoMarkOthers = null;
     }
-    unlockScroll();
+    state.releaseScroll?.();
+    state.releaseScroll = null;
     updateTriggers(state, false);
 
     whenAnimationsFinish(state, () => {
@@ -625,6 +584,7 @@
       openType: null,
       closeType: "",
       undoMarkOthers: null,
+      releaseScroll: null,
       finishToken: null,
     };
     dialogs.set(popup, state);
@@ -699,7 +659,8 @@
     const wasOpen = state.open;
     state.open = false;
     updateNestedAttributes();
-    unlockScroll();
+    state.releaseScroll?.();
+    state.releaseScroll = null;
     if (wasOpen) popup.dispatchEvent(new CustomEvent("dialog-close", { bubbles: true }));
     state.root.remove();
     dialogs.delete(popup);
@@ -793,7 +754,6 @@
   // the aria-hidden marking).
   new MutationObserver(() => {
     init();
-    unlockScroll();
   }).observe(document.body, {
     childList: true,
     subtree: true,

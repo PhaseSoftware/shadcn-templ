@@ -438,42 +438,6 @@
     }
   }
 
-  // ----- scroll lock ---------------------------------------------------------
-  //
-  // Base UI locks the background scroll while a modal drawer is open and pads
-  // the body by the scrollbar width so the page does not shift (same as
-  // dialog.js). Like Base UI's ScrollLocker.acquire (packages/utils/src/
-  // useScrollLock.ts), the lock lands in a 0ms timeout: the click's frame
-  // paints the enter transition without paying the full-page scrollbar
-  // relayout first.
-  let lockTimer;
-
-  function applyScrollLock() {
-    lockTimer = undefined;
-    if (!document.querySelector('dialog[open][data-tui-dialog-show-modal="true"]')) return;
-    if (document.body.hasAttribute("data-tui-scroll-locked")) return;
-    const scrollbar = window.innerWidth - document.documentElement.clientWidth;
-    document.body.setAttribute("data-tui-scroll-locked", "");
-    document.body.style.overflow = "hidden";
-    if (scrollbar > 0) document.body.style.paddingRight = scrollbar + "px";
-  }
-
-  function lockScroll() {
-    if (lockTimer !== undefined || document.body.hasAttribute("data-tui-scroll-locked")) return;
-    lockTimer = window.setTimeout(applyScrollLock, 0);
-  }
-
-  function unlockScroll() {
-    // Drawer dialogs carry data-tui-dialog-show-modal too, so this guard (the
-    // same one dialog.js uses) covers open dialogs and open drawers alike.
-    if (document.querySelector('dialog[open][data-tui-dialog-show-modal="true"]')) return;
-    window.clearTimeout(lockTimer);
-    lockTimer = undefined;
-    document.body.removeAttribute("data-tui-scroll-locked");
-    document.body.style.overflow = "";
-    document.body.style.paddingRight = "";
-  }
-
   function resetSwipeVars(dialog) {
     const popup = popupOf(dialog);
     const overlay = overlayOf(dialog);
@@ -512,7 +476,8 @@
     if (snap) snap.active = snap.points[0];
     unwatchSnapResize(dialog);
     updateState(dialog, false);
-    unlockScroll();
+    dialog._tuiReleaseScroll?.();
+    dialog._tuiReleaseScroll = null;
     syncInert();
     // Return focus to where the drawer was opened from, if focus is still
     // ours to give back.
@@ -593,7 +558,7 @@
         // built by hand, like Base UI does.
         dialog.show();
         if (dialog.getAttribute("data-tui-dialog-show-modal") === "true") {
-          lockScroll();
+          dialog._tuiReleaseScroll = window.tui.scrollLock.acquire(dialog);
           dialog._tuiPreviousFocus = document.activeElement;
           syncInert();
           (popupOf(dialog) || dialog).focus({ preventScroll: true });
@@ -1335,7 +1300,12 @@
       const content = tpl.content.querySelector("[data-tui-drawer-content]");
       if (content) {
         const stale = content.id && document.getElementById(content.id);
-        if (stale) stale.remove();
+        if (stale) {
+          unwatchSnapResize(stale);
+          stale._tuiReleaseScroll?.();
+          stale._tuiReleaseScroll = null;
+          stale.remove();
+        }
         content._tuiPortalOwner = tpl.parentElement;
         document.body.appendChild(content);
       }
@@ -1355,6 +1325,8 @@
     document.querySelectorAll("body > dialog[data-tui-drawer-content]").forEach((dialog) => {
       if (dialog._tuiPortalOwner && !dialog._tuiPortalOwner.isConnected) {
         unwatchSnapResize(dialog);
+        dialog._tuiReleaseScroll?.();
+        dialog._tuiReleaseScroll = null;
         dialog.remove();
       }
     });
@@ -1399,7 +1371,6 @@
   // release the scroll lock if an open drawer got swapped out of the DOM.
   new MutationObserver(() => {
     init();
-    unlockScroll();
   }).observe(document.body, {
     childList: true,
     subtree: true,
