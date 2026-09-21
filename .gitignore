@@ -20,6 +20,7 @@ tmp
 
 # Build outputs
 assets/css/output.css
+assets/js/shadcn-templ-*.js
 
 .gocache
 

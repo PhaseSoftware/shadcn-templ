@@ -104,7 +104,7 @@ Checks: `go test ./cmd/shadcn-templ/...`, plus `shadcn-templ init` into a temp d
 
 ### 6. Docs and changelog
 
-- [ ] Done
+- [x] Done
 
 `installation.md`: the serving section drops `ScriptsHandler` and `mux.Handle("GET /components/{bundle}", ...)` entirely; it now says that `add` writes `assets/js/shadcn-templ-<hash>.js` plus the generated `scripts_bundle.go`, that the `.js` is ignored and rebuilt like `output.css` while `scripts_bundle.go` is committed, that the hashed name is what makes the one-year immutable cache safe, that `@components.Scripts()` renders the tag, and that `shadcn-templ bundle --watch` keeps them fresh while editing component scripts. State the one deployment consequence plainly: a build from a clean checkout has to run `shadcn-templ bundle` before `go build`, exactly where it already runs Tailwind. Remove the `WithMode` paragraph currently in the working tree and document `SHADCN_TEMPL_DEV=true` for the asset handler with the note that `task dev` sets it. `cli.md`: a `## bundle` section in the shape of `## add`. `components-json.md`: a `## scripts` section with `scripts.dir` and `scripts.path` subsections, in the shape of the existing `## tailwind` block. Add `assets/js/shadcn-templ-*.js` to `.gitignore` and to `cmd/shadcn-templ/templates/templ-app/.gitignore` next to `assets/css/output.css`, and a `RUN` line for the bundle next to `Dockerfile:38`, so a clean build produces it the way it produces the CSS; the scaffold's README or docs say the same for the user's own deployment. A changelog entry under `internal/service/content/docs/changelog/` following the existing naming, covering the four user-visible changes: the bundle is written by the CLI, `scripts.go` and `embed.go` are gone, the served URL now comes from `components.json`, and `GO_ENV` is deprecated in favour of `SHADCN_TEMPL_DEV`.
 
@@ -146,5 +146,13 @@ Added repo-only `SourceFiles` and switched the docs source viewer and production
 The scaffold defaults to embedded production assets. Explicit SHADCN_TEMPL_DEV/TEMPL_DEV_MODE enables disk serving and no-store; GO_ENV=development is the deprecated alias. The Taskfile env setting landed with Task 2. Added the scaffold's missing asset embed, which is necessary for the specified production behavior.
 
 A subprocess integration test compiles the actual scaffold main/asset files with a minimal Go page stub (no templ generation), changes the disk asset after compilation, and checks all three dev flags, unset/unknown/false flags, embedded versus disk bytes, and Cache-Control. This replaces a manual scaffold task-dev/go-run cycle and passes. The test caught and fixed the missing leading slash after StripPrefix. Only hashed JS is immutable; unhashed CSS revalidates to avoid stale deployments. Fresh CLI scaffold installation also passes.
+
+### Task 6
+
+Updated installation, CLI/config documentation, both gitignores and Docker's pre-build step; added the September changelog. Documented the ignored JS versus committed manifest, clean-checkout build order, caching/compression ownership, migration from old handler files, and explicit development flags. Corrected the import-workflow page's now-invalid claim that importing a Go package alone provides the same JS setup: behavior sources must be installed locally for this CLI builder.
+
+Final `go build ./...` and `git diff --check` pass. Production HTTP smoke checks returned 200 for installation, CLI and components-json pages. `git check-ignore` confirms the asset is ignored; the generated manifest is committed. No Docker image build was run. The unrelated pre-existing chart plan edits remain untouched and uncommitted.
+
+Ready for Planner review. Implementation is complete; the only open checkbox is Task 3's pre-existing full-component-suite failure recorded above. No component markup, classes, JS behavior or minified assets were changed.
 
 ## Planner review
