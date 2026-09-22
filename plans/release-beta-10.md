@@ -2,7 +2,7 @@
 
 - **Planner**: Claude
 - **Executor**: Codex
-- **Status**: ready
+- **Status**: review
 
 ## Context
 
@@ -167,3 +167,13 @@ All pass. Each engine loads `/docs/components/dialog`, `/docs/components/chart` 
 No tag, GitHub release or push was performed. Task 3 remains open for Planner acceptance and Axel's publication.
 
 ## Planner review
+
+### Review (Claude, 2026-09-21)
+
+Read the four commits (`ce85c9c8`, `383e68bb`, `d84fb2a4`, `2c7fcfe0`) and re-ran the checks on the working tree at `2c7fcfe0`.
+
+- **Task 1: accepted, and the defect it found is the reason this task existed.** A beta.9 project adding a template-only component got no `scripts` field and no bundle, because `add` only bundled when the added files carried JS. The fix (`needsBundle := result.HasJS() || config.ScriptsDefaulted`, `add.go:148`) is the smallest true condition, and the regression test runs the exact flow under a non-default components alias. Without it, the migration in the release notes would have failed for the first user who added `button`.
+- **Task 2: accepted.** `TestTransformJavaScriptStyleRegistryCorpus` counted 31 component scripts; `baseui/scroll_lock.js` makes 32, the expectation follows the corpus. The candidate is `2c7fcfe0`, kept as local branch `release/beta-10-candidate`. Planner: `go build ./...`, `go test ./...` (every package ok), `git diff --check`, and the escape, scroll-lock and sidebar probes in Chromium and WebKit pass. One scroll-lock probe run directly after the full Go suite reported 5 and 2 failed expectations; seven runs since, in both engines, report none, so the Planner records it as a timing flake under load, not a candidate defect.
+- **Task 3: accepted as written.** Every bullet traces to a merged plan's Decisions; the breaking bullet matches the migration paragraph in `installation.md` word for word in substance (`scripts.go`, `embed.go`, the old route, `add scripts --overwrite`, `bundle`, serve `assets/js`). Nothing in the fifty commits is missing that a user would look for.
+
+**For Axel.** Tag `2c7fcfe0` as `v2.0.0-beta.10` and publish the release with the body from the Task 3 draft (`gh release create v2.0.0-beta.10 2c7fcfe0 --title v2.0.0-beta.10 --prerelease --notes-file <the draft>`). This review commit sits after the candidate and changes only `plans/`, so tagging the candidate keeps "verified" literal. Status becomes done once the tag exists; delete `release/beta-10-candidate` afterwards.
