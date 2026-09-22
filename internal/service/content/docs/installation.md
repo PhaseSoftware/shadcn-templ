@@ -210,26 +210,58 @@ Init writes `components.json`, merges your theme CSS variables and base layer in
 
 ### Create Taskfile
 
-templ and Tailwind run as watchers; a `Taskfile.yml` in your project root wires them into one dev command:
+Pin templ and the CLI as Go tools, as the scaffold does, and commit the resulting `go.mod` and `go.sum`:
+
+```shell
+go get -tool github.com/a-h/templ/cmd/templ
+go get -tool github.com/axadrn/shadcn-templ/v2/cmd/shadcn-templ
+```
+
+`go tool` uses the versions recorded in your module. A `Taskfile.yml` in your project root runs templ, Tailwind and the script bundle as watchers, and defines the production build:
 
 ```yaml
 version: "3"
+
+vars:
+  # The app port: an explicit 'task dev PORT=8091' wins, otherwise the next
+  # free port from 8090 up. The templ proxy and the app share the result,
+  # so hot reload never points at a foreign app.
+  FREE_PORT:
+    sh: port=8090; while nc -z localhost $port >/dev/null 2>&1; do port=$((port+1)); done; echo $port
+  PORT: '{{.PORT | default .FREE_PORT}}'
 
 tasks:
   templ:
     desc: Run templ with integrated server and hot reload
     cmds:
-      - templ generate --watch --proxy="http://localhost:8090" --cmd="go run ./main.go" --open-browser=false
+      - go tool templ generate --watch --proxy="http://localhost:{{.PORT}}" --cmd="go run ./main.go" --open-browser=false
+    env:
+      PORT: "{{.PORT}}"
 
   tailwind:
     desc: Watch Tailwind CSS changes
     cmds:
       - "tailwindcss -i ./assets/css/globals.css -o ./assets/css/output.css --watch"
 
+  scripts-watch:
+    desc: Watch component scripts
+    cmds:
+      - go tool shadcn-templ bundle --watch
+
+  build:
+    desc: Build the application with production assets
+    cmds:
+      - tailwindcss -i ./assets/css/globals.css -o ./assets/css/output.css --minify
+      - go tool shadcn-templ bundle
+      - go tool templ generate
+      - go build -o bin/app .
+
   dev:
+    env:
+      SHADCN_TEMPL_DEV: "true"
     desc: Start development server with hot reload
     cmds:
-      - task --parallel tailwind templ
+      - task --parallel tailwind scripts-watch templ
 ```
 
 Run everything with:
@@ -238,7 +270,7 @@ Run everything with:
 task dev
 ```
 
-Adjust the `--proxy` port (default: 8090) if your app uses a different port. templ's dev server runs at http://localhost:7331
+The scaffold server honors `PORT`; adapt the `templ` task to your existing server's port configuration. templ's dev proxy runs at http://localhost:7331. For production, see [Build and Deploy](#build-and-deploy).
 
 ### Add Components
 
@@ -296,7 +328,7 @@ shadcn-templ bundle --watch
 
 The scaffold's `task dev` runs this watcher for you. For a one-off rebuild, run `shadcn-templ bundle`.
 
-Commit `components/scripts_bundle.go` together with the component sources. Ignore `assets/js/shadcn-templ-*.js`, just like `assets/css/output.css`; both are build artifacts. **A deployment from a clean checkout must run `shadcn-templ bundle` before `go build`**, alongside the Tailwind build. The same source files produce the same hash. After merging component changes, rerun `bundle` to update the manifest.
+Commit `components/scripts_bundle.go` together with the component sources. Ignore `assets/js/shadcn-templ-*.js`, just like `assets/css/output.css`; both are build artifacts. **For production builds from a clean checkout, use [Build and Deploy](#build-and-deploy).** The same source files produce the same hash. After merging component changes, rerun `bundle` to update the manifest.
 
 Upgrading from runtime bundling: remove the old `components/scripts.go`, `components/embed.go` and `/components/{bundle}` route, update `scripts.templ` with `shadcn-templ add scripts --overwrite`, and run `shadcn-templ bundle`.
 
@@ -341,6 +373,35 @@ func setupAssetsRoutes(mux *http.ServeMux) {
 The scaffold uses production assets when no development flag is set. `task dev` sets `SHADCN_TEMPL_DEV=true`; templ's watcher sets `TEMPL_DEV_MODE=true`. The scaffold temporarily also accepts `GO_ENV=development` as a deprecated alias, to be removed after this minor version. Unhashed assets such as `output.css` revalidate; only the hashed bundle is cached immutable.
 
 > **📝 Note:** shadcn-templ also works as a plain Go module dependency without copying any source. That is a shadcn-templ extra outside this page, see [Import Workflow](/docs/import-workflow).
+
+## Build and Deploy
+
+For a scaffold project, install Go, [Task](https://taskfile.dev/installation/) and the [Tailwind CSS standalone CLI](https://github.com/tailwindlabs/tailwindcss/releases/latest). After cloning, run `go mod download` to fetch the versions committed in `go.mod` and `go.sum`. templ and the bundling CLI are pinned Go tools; they need no separate installation.
+
+Build the application:
+
+```shell
+task build
+```
+
+This runs Tailwind with minification, bundles component JavaScript, generates production templ code, then writes `bin/app`. The binary embeds its CSS and JavaScript and can run outside the source directory:
+
+```shell
+PORT=8090 ./bin/app
+```
+
+Keep `bin/`, `assets/css/output.css` and `assets/js/shadcn-templ-*.js` out of git. Commit the component sources, `components/scripts_bundle.go`, `go.mod` and `go.sum`. Always use `task build` for deployment so generated assets and production templates are ready before Go embeds them.
+
+The scaffold also includes a Dockerfile that installs the build tools and runs the same task. Only Docker is required on the host:
+
+```shell
+docker build -t myapp .
+docker run --rm -p 8090:8090 myapp
+```
+
+The final image contains the application binary with embedded assets and listens on port 8090. Development flags must remain unset for production asset serving.
+
+For an existing project, add the `build` task from [Create Taskfile](#create-taskfile), pin both Go tools as shown there, and adapt the Go build target and asset paths to your app. Copy the scaffold's [Dockerfile](https://github.com/axadrn/shadcn-templ/blob/main/cmd/shadcn-templ/templates/templ-app/Dockerfile) and [.dockerignore](https://github.com/axadrn/shadcn-templ/blob/main/cmd/shadcn-templ/templates/templ-app/.dockerignore) for container builds, keeping their `bin/app` output path aligned with your task.
 
 ## Component Props
 

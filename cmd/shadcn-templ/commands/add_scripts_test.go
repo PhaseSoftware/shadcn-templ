@@ -139,11 +139,26 @@ func TestAddJavaScriptComponentBuildsBundleAtComponentsAlias(t *testing.T) {
 	if err := RunInit(InitOptions{Cwd: filepath.Dir(scaffold), Template: "templ", ProjectName: "scaffold", Silent: true, Registry: server.URL}); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"components/scripts.templ", "components/scripts_bundle.go", "assets/assets.go"} {
+	for _, name := range []string{"components/scripts.templ", "components/scripts_bundle.go", "assets/assets.go", "Dockerfile", ".dockerignore"} {
 		if _, err := os.Stat(filepath.Join(scaffold, name)); err != nil {
 			t.Fatal(err)
 		}
 	}
+	for name, snippets := range map[string][]string{
+		"Taskfile.yml": {"  build:\n", "go tool templ generate", "go tool shadcn-templ bundle"},
+		"go.mod":       {"tool github.com/a-h/templ/cmd/templ", "tool github.com/axadrn/shadcn-templ/v2/cmd/shadcn-templ"},
+	} {
+		data, err := os.ReadFile(filepath.Join(scaffold, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, snippet := range snippets {
+			if !strings.Contains(string(data), snippet) {
+				t.Errorf("scaffold %s is missing %q", name, snippet)
+			}
+		}
+	}
+
 	for _, name := range []string{"components/scripts.go", "components/embed.go"} {
 		if _, err := os.Stat(filepath.Join(scaffold, name)); !os.IsNotExist(err) {
 			t.Errorf("unexpected scaffold file %s", name)

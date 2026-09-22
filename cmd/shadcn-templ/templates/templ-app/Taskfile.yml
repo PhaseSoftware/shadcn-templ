@@ -12,7 +12,7 @@ tasks:
   templ:
     desc: Run templ with integrated server and hot reload
     cmds:
-      - templ generate --watch --proxy="http://localhost:{{.PORT}}" --cmd="go run ./main.go" --open-browser=false
+      - go tool templ generate --watch --proxy="http://localhost:{{.PORT}}" --cmd="go run ./main.go" --open-browser=false
     env:
       PORT: "{{.PORT}}"
 
@@ -24,7 +24,15 @@ tasks:
   scripts-watch:
     desc: Watch component scripts
     cmds:
-      - shadcn-templ bundle --watch
+      - go tool shadcn-templ bundle --watch
+
+  build:
+    desc: Build the application with production assets
+    cmds:
+      - tailwindcss -i ./assets/css/globals.css -o ./assets/css/output.css --minify
+      - go tool shadcn-templ bundle
+      - go tool templ generate
+      - go build -o bin/app .
 
   dev:
     env:
