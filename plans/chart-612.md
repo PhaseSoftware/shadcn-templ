@@ -2,7 +2,7 @@
 
 - **Planner**: Claude
 - **Executor**: Codex
-- **Status**: in progress
+- **Status**: done
 
 ## Context
 
@@ -230,5 +230,9 @@ Reviewed at `08149818`, the PR head on `miguelcsilva/shadcn-templ`, `chart-line-
 1. `XAxisProps` has no `TickCount`, so in a vertical layout the numeric x axis takes its tick count from `YAxisProps.TickCount`, the category axis. Measured: `YAxisProps{TickCount: 3}` on a horizontal bar chart yields the x ticks `[0 45 90]`, and `8` yields eight of them. Recharts puts `tickCount` on each axis with a default of 5. Now that the numeric x axis is drawn and reads `Ticks`, `Domain` and `AllowDataOverflow` from `XAxisProps`, `TickCount` belongs there too and `setValueScale` should read it from the numeric axis.
 2. Computed tick values now reach the JSON payload carrying float noise, for example `600.0000000000001` and its ticks. The arithmetic is unchanged from the old browser code and every label is rounded before display, so nothing renders differently, but upstream uses Decimal.js and its values are exact. Worth a decision the next time this file is opened: either accept it in a comment or round the step in `getFormatStep`.
 3. `parseSpecifiedDomain` converts numbers with `strconv.ParseFloat(str(value), 64)` where the package already has `num(any) float64` for exactly that. Reusing it would be the house idiom, though `num` covers fewer integer widths than the switch in `scale.go`.
+
+**Task 9 (`ecba2e7e`): accepted.** `XAxisProps.TickCount` lands next to `MinTickGap` with the y axis' own wording, and `setValueScale` now reads the count from the same axis it already reads `Ticks`, `Domain` and `AllowDataOverflow` from. The unconditional y axis assignment in `buildModel` is gone. The Planner checked the one risk the task named: `buildRadarModel` and `buildRadialModel` never set `TickCount`, so the single browser consumer, `domainTicks(m, m.tickCount || 5)` in `renderRadial`, has always seen the default and still does. The six case test covers both layouts, explicit counts, defaults and category axis isolation. Re-run by the Planner: `go build ./...`, `go vet`, `go test ./components/chart/ ./internal/registryapi/`, `gofmt -l`, `git diff --check`, and fresh Chromium and WebKit captures. Zero differences against the baselines across the six documentation charts and 68 registry demos, and zero differences in all fifteen fixtures against the task 8 state, which is what a change that only routes a prop should produce.
+
+Follow-up 1 from the review above is now closed. Follow-ups 2 and 3 stay open as notes, neither blocks the merge. The branch is ready.
 
 Remaining outside the plan: the merge and the reply to the author.

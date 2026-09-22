@@ -2,7 +2,7 @@
 
 - **Planner**: Claude
 - **Executor**: Codex
-- **Status**: review
+- **Status**: done
 
 ## Context
 
